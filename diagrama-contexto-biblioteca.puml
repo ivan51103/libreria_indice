@@ -1,0 +1,74 @@
+@startuml
+title Diagrama de Contexto - Indice Digital de Biblioteca
+
+left to right direction
+skinparam backgroundColor white
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "Usuario Invitado" as Guest
+actor "Administrador" as Admin
+actor "Personal de Biblioteca" as Staff
+
+rectangle "Sistema: Indice Digital de Biblioteca" as System {
+  usecase "Explorar catalogo" as UC1
+  usecase "Buscar libros" as UC2
+  usecase "Ver detalle de libro" as UC3
+  usecase "Consultar ubicacion fisica" as UC4
+  usecase "Iniciar sesion" as UC5
+  usecase "Registrar libro y ejemplar" as UC6
+  usecase "Editar libro, ejemplar\ny ubicacion" as UC7
+  usecase "Actualizar estado de ejemplar" as UC8
+  usecase "Aplicar reglas de visibilidad\npor estado" as UC9
+}
+
+rectangle "Interfaz JavaFX" as FX
+rectangle "Autenticacion con hash\nPBKDF2" as Auth
+database "Base de datos SQLite" as DB
+
+Guest --> FX
+Admin --> FX
+Staff --> Admin
+
+Guest --> UC1
+Guest --> UC2
+Guest --> UC3
+Guest --> UC4
+
+Admin --> UC5
+Admin --> UC1
+Admin --> UC2
+Admin --> UC3
+Admin --> UC4
+Admin --> UC6
+Admin --> UC7
+Admin --> UC8
+
+UC1 --> DB
+UC2 --> DB
+UC3 --> DB
+UC4 --> DB
+UC5 --> Auth
+UC5 --> DB
+UC6 --> DB
+UC7 --> DB
+UC8 --> DB
+UC1 --> UC9
+UC3 --> UC9
+
+note right of System
+La pantalla principal muestra el catalogo
+desde el inicio; la busqueda es opcional.
+La ubicacion fisica del ejemplar es una
+capacidad central del sistema.
+end note
+
+note bottom of UC9
+REMOVED se oculta para invitados.
+AVAILABLE cuenta como disponible.
+MISSING y REPAIR siguen visibles,
+pero no cuentan como disponibles.
+end note
+
+@enduml

@@ -1,0 +1,123 @@
+@startuml
+title Diagrama de Clases Base - Vista de Presentacion
+
+left to right direction
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+package "Dominio" {
+  class BookTitle {
+    id: Long
+    title: String
+    author: String
+    isbn: String
+    category: String
+  }
+
+  class BookCopy {
+    id: Long
+    inventoryCode: String
+    status: CopyStatus
+  }
+
+  class Location {
+    id: Long
+    room: String
+    section: String
+    shelf: String
+    code: String
+  }
+
+  enum CopyStatus {
+    AVAILABLE
+    MISSING
+    REMOVED
+    REPAIR
+  }
+}
+
+package "Seguridad" {
+  class User
+  enum UserRole {
+    GUEST
+    ADMIN
+  }
+  class UserSession
+}
+
+package "Consulta" {
+  class BookSearchCriteria
+  class BookCatalogItemView
+  class BookDetailViewModel
+  class PageRequest
+  class PageResult<T>
+}
+
+package "Persistencia" {
+  interface BookTitleRepository
+  interface BookCopyRepository
+  interface LocationRepository
+  interface UserRepository
+}
+
+package "Servicios" {
+  class AuthenticationService
+  class CatalogService
+  class InventoryService
+  class SearchService
+  class AuthorizationService
+}
+
+package "Interfaz" {
+  class LoginController
+  class CatalogController
+  class BookAdminController
+  class LoginView
+  class CatalogView
+  class BookAdminView
+}
+
+class MainApp
+class AppConfig
+
+BookTitle "1" -- "0..*" BookCopy
+BookCopy "0..*" -- "1" Location
+BookCopy --> CopyStatus
+User --> UserRole
+UserSession --> User
+
+BookDetailViewModel --> BookTitle
+BookDetailViewModel --> BookCopy
+BookDetailViewModel --> Location
+
+CatalogService ..> BookTitleRepository
+CatalogService ..> BookCopyRepository
+CatalogService ..> LocationRepository
+InventoryService ..> BookTitleRepository
+InventoryService ..> BookCopyRepository
+InventoryService ..> LocationRepository
+AuthenticationService ..> UserRepository
+
+LoginController ..> AuthenticationService
+CatalogController ..> CatalogService
+BookAdminController ..> InventoryService
+
+LoginController ..> LoginView
+CatalogController ..> CatalogView
+BookAdminController ..> BookAdminView
+
+MainApp ..> AppConfig
+AppConfig ..> AuthenticationService
+AppConfig ..> CatalogService
+AppConfig ..> InventoryService
+
+note bottom of CatalogView
+El catalogo es visible desde el inicio.
+La busqueda es una ayuda, no un requisito.
+end note
+
+@enduml

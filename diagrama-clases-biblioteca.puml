@@ -1,0 +1,316 @@
+@startuml
+title Diagrama de Clases Actualizado - Indice Digital de Biblioteca
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+
+package "config" {
+  class AppConfig
+  class ConnectionProvider
+  class DatabaseInitializer
+}
+
+package "security" {
+  class User {
+    - id: Long
+    - username: String
+    - passwordHash: String
+    - role: UserRole
+  }
+
+  enum UserRole {
+    GUEST
+    ADMIN
+  }
+
+  class UserSession {
+    - currentUser: User
+    - active: boolean
+  }
+
+  class AuthenticationService {
+    + login(username: String, password: String): UserSession
+    + logout(): void
+    + loginAsGuest(): UserSession
+  }
+
+  class PasswordService {
+    + hashPassword(rawPassword: String): String
+    + matches(rawPassword: String, storedValue: String): boolean
+    + needsRehash(storedValue: String): boolean
+  }
+}
+
+package "domain" {
+  class BookTitle {
+    - id: Long
+    - title: String
+    - author: String
+    - isbn: String
+    - publisher: String
+    - year: int
+    - category: String
+    - career: String
+    - description: String
+    - coverPath: String
+  }
+
+  class BookCopy {
+    - id: Long
+    - bookTitleId: Long
+    - inventoryCode: String
+    - locationId: Long
+    - status: CopyStatus
+    - notes: String
+  }
+
+  class Location {
+    - id: Long
+    - room: String
+    - section: String
+    - shelf: String
+    - level: String
+    - position: String
+    - code: String
+  }
+
+  enum CopyStatus {
+    AVAILABLE
+    MISSING
+    REMOVED
+    REPAIR
+  }
+}
+
+package "search.query" {
+  class BookSearchCriteria {
+    - text: String
+    - author: String
+    - category: String
+    - career: String
+    - availableOnly: boolean
+  }
+
+  enum BookSortField {
+    TITLE
+    AUTHOR
+    YEAR
+    CATEGORY
+  }
+
+  enum SortDirection {
+    ASC
+    DESC
+  }
+
+  class PageRequest {
+    - page: int
+    - size: int
+    - sortField: BookSortField
+    - direction: SortDirection
+  }
+
+  class PageResult<T> {
+    - items: List<T>
+    - totalItems: long
+    - totalPages: int
+    - page: int
+  }
+
+  class BookCatalogItemView {
+    - bookTitleId: Long
+    - title: String
+    - author: String
+    - coverPath: String
+    - category: String
+    - availableCopies: int
+  }
+
+  class BookDetailViewModel {
+    - bookTitle: BookTitle
+    - copies: List<BookCopy>
+    - locations: List<Location>
+  }
+
+  class SearchSuggestion {
+    - value: String
+    - type: String
+  }
+}
+
+package "repository" {
+  interface UserRepository {
+    + findByUsername(username: String): User
+    + save(user: User): User
+  }
+
+  interface BookTitleRepository {
+    + findAll(pageRequest: PageRequest): PageResult<BookTitle>
+    + findById(id: Long): BookTitle
+    + findByIsbn(isbn: String): BookTitle
+    + search(criteria: BookSearchCriteria, pageRequest: PageRequest): PageResult<BookTitle>
+    + save(bookTitle: BookTitle): BookTitle
+    + delete(id: Long): void
+  }
+
+  interface BookCopyRepository {
+    + findById(id: Long): BookCopy
+    + findByBookTitleId(bookTitleId: Long): List<BookCopy>
+    + findByInventoryCode(inventoryCode: String): BookCopy
+    + save(bookCopy: BookCopy): BookCopy
+    + updateStatus(copyId: Long, status: CopyStatus): void
+    + delete(copyId: Long): void
+  }
+
+  interface LocationRepository {
+    + findById(id: Long): Location
+    + findByCode(code: String): Location
+    + save(location: Location): Location
+  }
+}
+
+package "repository.sqlite" {
+  class SQLiteUserRepository
+  class SQLiteBookTitleRepository
+  class SQLiteBookCopyRepository
+  class SQLiteLocationRepository
+}
+
+package "service" {
+  class BusinessException
+
+  class CatalogService {
+    + getCatalog(criteria: BookSearchCriteria, pageRequest: PageRequest, adminView: boolean): PageResult<BookCatalogItemView>
+    + getBookDetail(bookTitleId: Long, adminView: boolean): BookDetailViewModel
+  }
+
+  class BookCatalogService {
+    + listBooks(pageRequest: PageRequest): PageResult<BookCatalogItemView>
+    + searchBooks(criteria: BookSearchCriteria, pageRequest: PageRequest): PageResult<BookCatalogItemView>
+  }
+
+  class InventoryService {
+    + registerBook(bookTitle: BookTitle, bookCopy: BookCopy, location: Location): void
+    + updateBook(bookTitle: BookTitle): void
+    + updateCopy(bookCopy: BookCopy): void
+    + updateBookEntry(bookTitle: BookTitle, bookCopy: BookCopy, location: Location): void
+    + changeCopyStatus(copyId: Long, status: CopyStatus): void
+  }
+
+  class SearchService {
+    + suggest(text: String): List<SearchSuggestion>
+    + normalize(text: String): String
+  }
+
+  class AuthorizationService {
+    + canManageCatalog(session: UserSession): boolean
+    + isGuest(session: UserSession): boolean
+  }
+}
+
+package "ui.controller" {
+  class LoginController {
+    + loginAsGuest(): UserSession
+    + login(username: String, password: String): UserSession
+  }
+
+  class CatalogController {
+    + loadCatalog(criteria: BookSearchCriteria, pageRequest: PageRequest, adminView: boolean): PageResult<BookCatalogItemView>
+    + loadBookDetail(bookTitleId: Long, adminView: boolean): BookDetailViewModel
+  }
+
+  class BookAdminController {
+    + registerBook(bookTitle: BookTitle, bookCopy: BookCopy, location: Location): void
+    + updateBook(bookTitle: BookTitle): void
+    + updateBookEntry(bookTitle: BookTitle, bookCopy: BookCopy, location: Location): void
+    + changeCopyStatus(copyId: Long, status: CopyStatus): void
+  }
+}
+
+package "ui.view" {
+  class LoginView
+  class CatalogView
+  class BookAdminView
+}
+
+package "app" {
+  class MainApp
+}
+
+BookTitle "1" -- "0..*" BookCopy : contiene >
+BookCopy "0..*" -- "1" Location : se ubica en >
+User "1" -- "1" UserRole
+BookCopy "1" -- "1" CopyStatus
+
+BookSearchCriteria "1" -- "1" PageRequest
+PageRequest "1" -- "1" BookSortField
+PageRequest "1" -- "1" SortDirection
+
+BookDetailViewModel "1" -- "1" BookTitle
+BookDetailViewModel "1" -- "0..*" BookCopy
+BookDetailViewModel "1" -- "0..*" Location
+
+AuthenticationService ..> UserRepository
+AuthenticationService ..> PasswordService
+CatalogService ..> BookTitleRepository
+CatalogService ..> BookCopyRepository
+CatalogService ..> LocationRepository
+BookCatalogService ..> BookTitleRepository
+InventoryService ..> BookTitleRepository
+InventoryService ..> BookCopyRepository
+InventoryService ..> LocationRepository
+InventoryService ..> BusinessException
+AuthorizationService ..> UserSession
+
+SQLiteUserRepository ..|> UserRepository
+SQLiteBookTitleRepository ..|> BookTitleRepository
+SQLiteBookCopyRepository ..|> BookCopyRepository
+SQLiteLocationRepository ..|> LocationRepository
+
+LoginController ..> AuthenticationService
+CatalogController ..> CatalogService
+BookAdminController ..> InventoryService
+
+LoginController ..> LoginView
+CatalogController ..> CatalogView
+BookAdminController ..> BookAdminView
+
+MainApp ..> AppConfig
+AppConfig ..> ConnectionProvider
+AppConfig ..> DatabaseInitializer
+AppConfig ..> PasswordService
+AppConfig ..> AuthenticationService
+AppConfig ..> CatalogService
+AppConfig ..> BookCatalogService
+AppConfig ..> InventoryService
+AppConfig ..> SQLiteUserRepository
+AppConfig ..> SQLiteBookTitleRepository
+AppConfig ..> SQLiteBookCopyRepository
+AppConfig ..> SQLiteLocationRepository
+
+note right of BookTitle
+Representa la obra bibliografica,
+no una copia fisica individual.
+end note
+
+note right of BookCopy
+Representa un ejemplar fisico
+con codigo y estado propios.
+end note
+
+note bottom of CatalogView
+La vista principal debe mostrar
+el catalogo desde el inicio.
+La interfaz actual esta hecha en JavaFX.
+end note
+
+note bottom of CatalogService
+En vista publica se ocultan los
+ejemplares REMOVED. En vista admin
+siguen visibles para gestion.
+end note
+
+@enduml

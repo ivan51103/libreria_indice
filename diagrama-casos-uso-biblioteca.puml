@@ -1,0 +1,86 @@
+@startuml
+title Diagrama de Casos de Uso - Indice Digital de Biblioteca
+
+left to right direction
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+
+actor "Usuario Invitado" as Guest
+actor "Administrador" as Admin
+
+rectangle "Indice Digital de Biblioteca" {
+  usecase "Entrar como invitado" as UC_GUEST_ACCESS
+  usecase "Iniciar sesion" as UC_LOGIN
+  usecase "Cerrar sesion" as UC_LOGOUT
+
+  usecase "Explorar catalogo" as UC_BROWSE
+  usecase "Buscar libros" as UC_SEARCH
+  usecase "Aplicar filtros" as UC_FILTER
+  usecase "Ver detalle de libro" as UC_DETAIL
+  usecase "Consultar ubicacion fisica" as UC_LOCATION
+  usecase "Ver disponibilidad\nde ejemplares" as UC_AVAILABILITY
+  usecase "Aplicar visibilidad\npor estado" as UC_STATUS_VISIBILITY
+
+  usecase "Registrar libro" as UC_CREATE_TITLE
+  usecase "Registrar ejemplar" as UC_CREATE_COPY
+  usecase "Editar informacion\ndel libro" as UC_EDIT_TITLE
+  usecase "Editar datos\ndel ejemplar" as UC_EDIT_COPY
+  usecase "Editar ubicacion\ndel ejemplar" as UC_EDIT_LOCATION
+  usecase "Cambiar estado\ndel ejemplar" as UC_CHANGE_STATUS
+  usecase "Dar de baja logica\nejemplar" as UC_SOFT_REMOVE
+  usecase "Validar duplicados\ny datos obligatorios" as UC_VALIDATE
+}
+
+Guest --> UC_GUEST_ACCESS
+Guest --> UC_BROWSE
+Guest --> UC_SEARCH
+Guest --> UC_FILTER
+Guest --> UC_DETAIL
+
+Admin --> UC_LOGIN
+Admin --> UC_LOGOUT
+Admin --> UC_BROWSE
+Admin --> UC_SEARCH
+Admin --> UC_FILTER
+Admin --> UC_DETAIL
+Admin --> UC_CREATE_TITLE
+Admin --> UC_CREATE_COPY
+Admin --> UC_EDIT_TITLE
+Admin --> UC_EDIT_COPY
+Admin --> UC_EDIT_LOCATION
+Admin --> UC_CHANGE_STATUS
+Admin --> UC_SOFT_REMOVE
+
+UC_DETAIL .> UC_LOCATION : <<include>>
+UC_DETAIL .> UC_AVAILABILITY : <<include>>
+UC_DETAIL .> UC_STATUS_VISIBILITY : <<include>>
+UC_BROWSE .> UC_STATUS_VISIBILITY : <<include>>
+UC_SEARCH .> UC_FILTER : <<extend>>
+UC_CREATE_TITLE .> UC_CREATE_COPY : <<include>>
+UC_CREATE_TITLE .> UC_VALIDATE : <<include>>
+UC_EDIT_TITLE .> UC_VALIDATE : <<include>>
+UC_EDIT_COPY .> UC_VALIDATE : <<include>>
+UC_EDIT_LOCATION .> UC_VALIDATE : <<include>>
+UC_SOFT_REMOVE .> UC_CHANGE_STATUS : <<include>>
+
+note right of UC_SOFT_REMOVE
+Se prefiere baja logica o
+cambio de estado antes que
+el borrado fisico.
+end note
+
+note bottom of UC_BROWSE
+El catalogo debe mostrarse desde el inicio,
+sin depender de una busqueda previa.
+end note
+
+note bottom of UC_STATUS_VISIBILITY
+REMOVED se oculta para invitados.
+AVAILABLE cuenta como disponible.
+MISSING y REPAIR son visibles,
+pero no cuentan como disponibles.
+end note
+
+@enduml

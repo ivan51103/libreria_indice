@@ -1,0 +1,329 @@
+Resumen maestro y contexto reutilizable del proyecto
+
+Proyecto:
+Indice digital de una biblioteca fisica con enfoque en consulta rapida del catalogo y localizacion fisica de libros o ejemplares dentro de la biblioteca.
+
+Objetivo principal:
+- Permitir explorar un catalogo visual de libros desde la pantalla principal.
+- Mostrar portada, titulo y datos basicos desde el inicio.
+- Al seleccionar un libro, mostrar informacion detallada.
+- Permitir conocer la ubicacion fisica exacta del ejemplar.
+- Incluir busqueda y filtros opcionales para encontrar libros especificos.
+- Permitir administracion del catalogo por parte de usuarios con rol administrador.
+
+Decision clave de producto:
+La pantalla principal no debe depender de la busqueda para mostrar resultados.
+Debe funcionar desde el inicio como un catalogo navegable.
+La busqueda y los filtros son herramientas opcionales de apoyo, no un requisito para poder ver libros.
+
+Roles del sistema:
+
+1. GUEST
+- Puede entrar al catalogo.
+- Puede explorar libros.
+- Puede ver portadas, titulos y autores.
+- Puede abrir el detalle de un libro.
+- Puede ver la ubicacion fisica del ejemplar.
+- Puede usar buscador y filtros.
+
+2. ADMIN
+- Tiene todo lo que puede hacer GUEST.
+- Puede registrar libros manualmente.
+- Puede editar la informacion de un libro.
+- Puede marcar ejemplares como perdidos o retirados.
+- Puede eliminar libros o ejemplares, aunque se recomendo preferir baja logica o cambio de estado en vez de borrado fisico.
+
+Decision importante sobre eliminacion:
+Se recomendo evitar borrado fisico directo como primera opcion.
+Es preferible usar estados como:
+- AVAILABLE
+- MISSING
+- REMOVED
+- REPAIR
+
+Esto conserva historial y evita perdida de informacion.
+
+Modelo de dominio recomendado:
+No modelar todo como una sola clase Book si existe la posibilidad de que haya varias copias fisicas del mismo titulo.
+Separacion recomendada:
+
+1. BookTitle
+Representa la obra o registro bibliografico.
+Campos relevantes:
+- id
+- title
+- author
+- isbn
+- publisher
+- year
+- category
+- career
+- description
+- coverPath
+
+2. BookCopy
+Representa el ejemplar fisico concreto.
+Campos relevantes:
+- id
+- bookTitleId
+- inventoryCode
+- locationId
+- status
+- notes
+
+3. Location
+Representa la ubicacion fisica estructurada.
+Campos relevantes:
+- id
+- room
+- section
+- shelf
+- level
+- position
+- code
+
+Relaciones principales:
+- Un BookTitle puede tener muchos BookCopy.
+- Un Location puede estar asociado a muchos BookCopy.
+- Cada BookCopy pertenece a un BookTitle.
+- Cada BookCopy tiene una Location.
+
+Arquitectura recomendada:
+
+Capas principales:
+- config
+- security
+- domain
+- search/query
+- repository
+- service
+- ui.controller
+- ui.view
+- app
+
+Clases principales definidas en el diseno:
+
+Config e infraestructura:
+- AppConfig
+- ConnectionProvider
+- DatabaseInitializer
+
+Seguridad:
+- User
+- UserRole
+- UserSession
+- AuthenticationService
+
+Dominio:
+- BookTitle
+- BookCopy
+- Location
+- CopyStatus
+
+Busqueda y consulta:
+- BookSearchCriteria
+- BookSortField
+- SortDirection
+- PageRequest
+- PageResult<T>
+- BookCatalogItemView
+- BookDetailViewModel
+- SearchSuggestion
+
+Persistencia:
+- UserRepository
+- BookTitleRepository
+- LocationRepository
+- BookCopyRepository
+
+Servicios:
+- CatalogService
+- BookCatalogService
+- InventoryService
+- SearchService
+- AuthorizationService
+
+Controladores:
+- LoginController
+- CatalogController
+- BookAdminController
+
+Vistas:
+- LoginView
+- CatalogView
+- BookAdminView
+
+Aplicacion:
+- MainApp
+
+Decisiones importantes de arquitectura:
+
+1. La app comparte una misma base de interfaz para GUEST y ADMIN.
+El administrador no tiene una app separada.
+Ve la misma interfaz base, pero con acciones adicionales habilitadas.
+
+2. La arquitectura debe girar alrededor del catalogo y la consulta.
+La tarea principal del sistema es:
+- abrir catalogo
+- explorar libros
+- buscar opcionalmente
+- ver detalle
+- identificar ubicacion fisica
+
+3. La parte administrativa es una extension del catalogo.
+No debe sentirse como modulo separado del flujo principal.
+
+4. La ubicacion fisica es parte central del modelo, no un simple detalle secundario.
+
+5. Se recomendó desacoplar la autenticacion de AppConfig.
+AppConfig debe dedicarse a configuracion y armado de dependencias.
+
+6. Se recomendó evitar que Controller, Service y Repository dupliquen exactamente los mismos metodos.
+Cada capa debe aportar una responsabilidad clara.
+
+Diseño UI/UX acordado:
+
+Pantallas propuestas:
+
+1. Login / Acceso
+- Entrar como invitado
+- Entrar como administrador
+
+2. Pantalla principal de catalogo
+Debe cargar libros desde el inicio.
+Elementos:
+- barra superior con buscador
+- indicador de rol
+- opcion de cerrar sesion
+- boton de registrar libro si es admin
+- panel opcional de filtros
+- area principal con tarjetas o grilla de libros
+- detalle rapido o panel complementario
+
+3. Pantalla de detalle del libro
+Debe mostrar:
+- portada
+- titulo
+- autor
+- ISBN
+- editorial
+- anio
+- categoria
+- carrera
+- descripcion
+- codigo de inventario
+- ubicacion fisica
+- estado
+
+4. Formulario de alta de libro
+Solo admin.
+
+5. Formulario de edicion de libro
+Solo admin.
+
+6. Flujo de baja o cambio de estado
+Solo admin.
+
+Decision importante de UX:
+La pantalla principal del catalogo debe funcionar como catalogo visual desde el principio.
+El usuario debe poder ver libros sin necesidad de escribir una busqueda.
+
+Busqueda inteligente:
+El usuario planteo que no quiere una busqueda estricta que dependa de coincidencia exacta con la base de datos.
+Se acordó que la busqueda debe ser mas flexible.
+
+Comportamiento esperado:
+- Si el usuario escribe solo una parte del titulo, debe encontrar coincidencias.
+- Si el usuario escribe solo una parte del nombre del autor, debe encontrar coincidencias.
+- Debe tolerar mayusculas y minusculas.
+- Idealmente debe tolerar ausencia de acentos.
+- Debe poder buscar por terminos parciales.
+- En una version mas avanzada, puede tolerar pequenos errores tipograficos.
+
+Niveles de implementacion sugeridos:
+
+1. Version inicial
+- coincidencia parcial
+- busqueda por titulo y autor
+- sin exigir texto exacto
+- uso de LIKE
+
+2. Version intermedia
+- normalizacion de texto
+- multiples terminos
+- busqueda en varios campos
+- sugerencias simples
+
+3. Version avanzada
+- fuzzy search
+- tolerancia a errores tipograficos
+- ranking de relevancia
+
+Comportamiento ideal del catalogo:
+- Si no hay consulta: mostrar catalogo general paginado o cargado por bloques.
+- Si hay consulta: aplicar busqueda.
+- Si hay filtros: combinar filtros y busqueda.
+
+Casos de uso reales discutidos:
+
+1. Usuario invitado busca un libro por autor
+Flujo:
+- entra como invitado
+- escribe parte del nombre del autor o explora
+- ve resultados
+- selecciona un libro
+- consulta detalle y ubicacion fisica
+
+2. Administrador registra un libro nuevo
+Flujo:
+- inicia sesion
+- abre formulario de alta
+- registra BookTitle
+- registra BookCopy
+- guarda
+- el libro aparece en el catalogo
+
+3. Administrador corrige informacion de un libro
+Flujo:
+- busca libro
+- abre detalle
+- pulsa editar
+- corrige datos como autor, titulo u otros
+- guarda cambios
+
+4. Administrador marca un ejemplar como perdido
+Flujo:
+- busca libro o ejemplar
+- abre detalle
+- cambia estado a MISSING
+- el sistema actualiza el estado y puede ocultarlo del catalogo normal si asi se define
+
+PlantUML generado:
+Ya se generó un diagrama completo en formato PlantUML con paquetes:
+- config
+- security
+- domain
+- search / query
+- repository
+- service
+- ui.controller
+- ui.view
+- app
+
+El PlantUML incluye atributos, metodos y relaciones entre clases.
+
+Pendiente inmediato sugerido:
+- crear una version reducida del diagrama para presentacion o Draw.io si el diagrama tecnico completo resulta demasiado cargado
+- o comenzar a bajar esto a estructura real de paquetes y clases Java
+
+Estado actual de decisiones:
+- Catalogo visual inicial: definido
+- Roles GUEST y ADMIN: definidos
+- Acciones de ADMIN: definidas
+- Separacion BookTitle / BookCopy / Location: definida
+- Busqueda opcional y flexible: definida
+- Arquitectura por capas: definida
+- PlantUML tecnico completo: generado
+
+Prompt corto para retomar en otra sesion:
+Estoy desarrollando un indice digital para una biblioteca fisica. Ya definimos una arquitectura con BookTitle, BookCopy y Location, roles GUEST y ADMIN, un catalogo visual inicial con busqueda opcional e inteligente, y un diagrama PlantUML tecnico completo. Quiero continuar desde ese punto.
