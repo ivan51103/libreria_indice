@@ -188,3 +188,9 @@
 - Artefactos generados:
   - `biblioteca/target/biblioteca-1.0-SNAPSHOT.jar`
   - `biblioteca/target/dependency/`
+
+## Preparacion para repositorio privado
+- Se inicializo un repositorio Git local en rama `main`.
+- Se confirmo que no se versionan artefactos generados, JARs, `target/`, bases SQLite ni archivos locales de Codex.
+- Se agrego `biblioteca/src/main/resources/.gitkeep` para conservar la carpeta de recursos sin subir `biblioteca.db`.
+- Se creo el commit inicial estable del proyecto.
