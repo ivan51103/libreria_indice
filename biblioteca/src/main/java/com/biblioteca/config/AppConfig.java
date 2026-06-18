@@ -20,7 +20,6 @@ import com.biblioteca.service.AuthorizationService;
 import com.biblioteca.service.BookCatalogService;
 import com.biblioteca.service.CatalogService;
 import com.biblioteca.service.InventoryService;
-import com.biblioteca.service.SearchService;
 
 public class AppConfig {
     // Centraliza el cableado de infraestructura, repositorios y servicios.
@@ -32,7 +31,6 @@ public class AppConfig {
     private final LocationRepository locationRepository;
     private final AuthenticationService authenticationService;
     private final PasswordService passwordService;
-    private final SearchService searchService;
     private final CatalogService catalogService;
     private final BookCatalogService bookCatalogService;
     private final InventoryService inventoryService;
@@ -49,10 +47,9 @@ public class AppConfig {
         this.locationRepository = new SQLiteLocationRepository(connectionProvider);
         this.passwordService = new PasswordService();
         this.authenticationService = new AuthenticationService(userRepository, passwordService);
-        this.searchService = new SearchService();
-        this.catalogService = new CatalogService(bookTitleRepository, bookCopyRepository, locationRepository, searchService);
-        this.bookCatalogService = new BookCatalogService(bookTitleRepository, bookCopyRepository, searchService);
-        this.inventoryService = new InventoryService(bookTitleRepository, bookCopyRepository, locationRepository);
+        this.catalogService = new CatalogService(bookTitleRepository, bookCopyRepository, locationRepository);
+        this.bookCatalogService = new BookCatalogService(bookTitleRepository, bookCopyRepository);
+        this.inventoryService = new InventoryService(connectionProvider, bookTitleRepository, bookCopyRepository, locationRepository);
         this.authorizationService = new AuthorizationService();
 
         seedSampleData();
@@ -68,10 +65,6 @@ public class AppConfig {
 
     public AuthenticationService getAuthenticationService() {
         return authenticationService;
-    }
-
-    public SearchService getSearchService() {
-        return searchService;
     }
 
     public PasswordService getPasswordService() {
@@ -98,82 +91,169 @@ public class AppConfig {
         seedAdminUser();
 
         // El sembrado es idempotente: permite enriquecer bases existentes sin duplicar ISBN, ubicaciones ni inventario.
-        Location engineeringShelf = seedLocation("Sala General", "Ingenieria", "A1", "2", "05", "SG-ING-A1-2-05");
-        Location programmingShelf = seedLocation("Sala General", "Programacion", "B3", "1", "02", "SG-PRO-B3-1-02");
-        Location databaseShelf = seedLocation("Sala General", "Bases de Datos", "C2", "1", "07", "SG-BD-C2-1-07");
-        Location networksShelf = seedLocation("Sala Tecnica", "Redes", "R1", "3", "01", "ST-RED-R1-3-01");
-        Location humanitiesShelf = seedLocation("Sala Humanidades", "Historia", "H4", "1", "04", "SH-HIS-H4-1-04");
+        Location adminShelf = seedLocation("Sala General", "Administración", "A1", "1", "01", "SG-ADM-A1-1-01");
+        Location industrialShelf = seedLocation("Sala General", "Ingeniería Industrial", "B1", "1", "01", "SG-IND-B1-1-01");
+        Location marketingShelf = seedLocation("Sala General", "Mercadotecnia", "C1", "1", "01", "SG-MKT-C1-1-01");
+        Location designShelf = seedLocation("Sala General", "Diseño Gráfico", "D1", "1", "01", "SG-DIS-D1-1-01");
+        Location languagesShelf = seedLocation("Sala General", "Lenguas Extranjeras", "E1", "1", "01", "SG-LEN-E1-1-01");
+        Location systemsShelf = seedLocation("Sala General", "Sistemas", "F1", "1", "01", "SG-SIS-F1-1-01");
+        Location communicationShelf = seedLocation("Sala General", "Comunicación", "G1", "1", "01", "SG-COM-G1-1-01");
 
+        BookTitle administracion = seedBookTitle(
+                "Administración",
+                "Stephen P. Robbins",
+                "9780134529226",
+                "Pearson",
+                2016,
+                "Administración",
+                "LICENCIATURA EN ADMINISTRACIÓN Y GESTIÓN DE NEGOCIOS EMPRENDEDORES",
+                "Fundamentos de administración para emprendedores.",
+                "covers/administracion.jpg");
+        BookTitle emprendedor = seedBookTitle(
+                "El Emprendedor Exitoso",
+                "Rafael Alcaraz",
+                "9786073235927",
+                "McGraw-Hill",
+                2017,
+                "Emprendimiento",
+                "LICENCIATURA EN ADMINISTRACIÓN Y GESTIÓN DE NEGOCIOS EMPRENDEDORES",
+                "Estrategias y habilidades para emprender con éxito.",
+                "covers/emprendedor.jpg");
+        BookTitle operaciones = seedBookTitle(
+                "Administración de Operaciones",
+                "William Stevenson",
+                "9781259071205",
+                "McGraw-Hill",
+                2012,
+                "Producción",
+                "LICENCIATURA EN INGENIERÍA EN ADMINISTRACIÓN INDUSTRIAL",
+                "Gestión de procesos productivos y cadena de suministro.",
+                "covers/operaciones.jpg");
+        BookTitle calidad = seedBookTitle(
+                "Control Total de Calidad",
+                "W. Edwards Deming",
+                "9789681815231",
+                "FCE",
+                2000,
+                "Calidad",
+                "LICENCIATURA EN INGENIERÍA EN ADMINISTRACIÓN INDUSTRIAL",
+                "Principios de calidad y mejora continua.",
+                "covers/calidad.jpg");
+        BookTitle marketing = seedBookTitle(
+                "Marketing",
+                "Philip Kotler",
+                "9780133856460",
+                "Pearson",
+                2015,
+                "Mercadotecnia",
+                "LICENCIATURA EN MERCADOTECNIA ESTRATÉGICA",
+                "Fundamentos de marketing y estrategia comercial.",
+                "covers/marketing.jpg");
+        BookTitle investigacion = seedBookTitle(
+                "Investigación de Mercados",
+                "Naresh Malhotra",
+                "9789702612355",
+                "Pearson",
+                2012,
+                "Investigación",
+                "LICENCIATURA EN MERCADOTECNIA ESTRATÉGICA",
+                "Técnicas y métodos de investigación de mercados.",
+                "covers/investigacion.jpg");
+        BookTitle disenoFundamentos = seedBookTitle(
+                "Fundamentos del Diseño",
+                "Robert Scott",
+                "9789681815232",
+                "Trillas",
+                2005,
+                "Diseño Gráfico",
+                "LICENCIATURA EN DISEÑO GRÁFICO",
+                "Principios básicos del diseño visual.",
+                "covers/diseno-fundamentos.jpg");
+        BookTitle disenoGrafico = seedBookTitle(
+                "Diseño Gráfico: Nuevos Fundamentos",
+                "Ellen Lupton",
+                "9788425226665",
+                "GG",
+                2012,
+                "Diseño",
+                "LICENCIATURA EN DISEÑO GRÁFICO",
+                "Teoría y práctica del diseño contemporáneo.",
+                "covers/diseno-grafico.jpg");
+        BookTitle linguistica = seedBookTitle(
+                "Introducción a la Lingüística",
+                "Humberto López",
+                "9789681680003",
+                "Trillas",
+                2010,
+                "Lingüística",
+                "LICENCIATURA EN LENGUAS EXTRANJERAS",
+                "Fundamentos del estudio del lenguaje.",
+                "covers/linguistica.jpg");
+        BookTitle traduccion = seedBookTitle(
+                "Manual de Traducción",
+                "Amparo Hurtado",
+                "9788497423350",
+                "Cátedra",
+                2011,
+                "Traducción",
+                "LICENCIATURA EN LENGUAS EXTRANJERAS",
+                "Técnicas y estrategias de traducción.",
+                "covers/traduccion.jpg");
         BookTitle cleanCode = seedBookTitle(
                 "Clean Code",
                 "Robert C. Martin",
                 "9780132350884",
                 "Prentice Hall",
                 2008,
-                "Programacion",
-                "Ingenieria en Sistemas",
-                "Buenas practicas para escribir codigo mantenible.",
+                "Programación",
+                "LICENCIATURA EN SISTEMAS COMPUTACIONALES",
+                "Buenas prácticas para escribir código mantenible.",
                 "covers/clean-code.jpg");
-        BookTitle cleanArchitecture = seedBookTitle(
-                "Clean Architecture",
-                "Robert C. Martin",
-                "9780134494166",
-                "Prentice Hall",
-                2017,
-                "Arquitectura de Software",
-                "Ingenieria en Sistemas",
-                "Principios para organizar sistemas de software mantenibles.",
-                "covers/clean-architecture.jpg");
-        BookTitle patterns = seedBookTitle(
-                "Patrones de Diseno",
-                "Erich Gamma",
-                "9780201633610",
-                "Addison-Wesley",
-                1994,
-                "Arquitectura de Software",
-                "Ingenieria en Sistemas",
-                "Catalogo de patrones de diseno orientados a objetos.",
-                "covers/patrones-diseno.jpg");
-        BookTitle databases = seedBookTitle(
+        BookTitle basesDatos = seedBookTitle(
                 "Fundamentos de Bases de Datos",
                 "Abraham Silberschatz",
                 "9780073523323",
                 "McGraw-Hill",
                 2010,
                 "Bases de Datos",
-                "Ingenieria en Sistemas",
-                "Modelo relacional, SQL, diseno y administracion de bases de datos.",
-                "covers/fundamentos-bases-datos.jpg");
-        BookTitle networks = seedBookTitle(
-                "Redes de Computadoras",
-                "Andrew S. Tanenbaum",
-                "9780132126953",
-                "Pearson",
-                2011,
-                "Redes",
-                "Ingenieria en Sistemas",
-                "Conceptos de comunicacion, protocolos y arquitectura de redes.",
-                "covers/redes-computadoras.jpg");
-        BookTitle history = seedBookTitle(
-                "Historia Universal Contemporanea",
-                "Jose Luis Comellas",
-                "9788432130562",
-                "Rialp",
-                2005,
-                "Historia",
-                "Bachillerato General",
-                "Panorama de procesos politicos y sociales contemporaneos.",
-                "covers/historia-universal.jpg");
+                "LICENCIATURA EN SISTEMAS COMPUTACIONALES",
+                "Modelo relacional, SQL, diseño y administración de bases de datos.",
+                "covers/bases-datos.jpg");
+        BookTitle comunicacionHumana = seedBookTitle(
+                "Teoría de la Comunicación Humana",
+                "Paul Watzlawick",
+                "9788425412078",
+                "Herder",
+                2004,
+                "Comunicación",
+                "LICENCIATURA EN COMUNICACIÓN",
+                "Estudio de la comunicación interpersonal y sistémica.",
+                "covers/comunicacion-humana.jpg");
+        BookTitle comunicacionOrg = seedBookTitle(
+                "Comunicación Organizacional",
+                "Carlos Fernández",
+                "9789706861415",
+                "Thomson",
+                2006,
+                "Comunicación",
+                "LICENCIATURA EN COMUNICACIÓN",
+                "Estrategias de comunicación en el entorno corporativo.",
+                "covers/comunicacion-org.jpg");
 
-        seedBookCopy(cleanCode, programmingShelf, "INV-0001", CopyStatus.AVAILABLE, "Ejemplar de consulta");
-        seedBookCopy(cleanCode, programmingShelf, "INV-0002", CopyStatus.REPAIR, "En reparacion de lomo");
-        seedBookCopy(cleanArchitecture, engineeringShelf, "INV-0004", CopyStatus.AVAILABLE, "Ejemplar de prestamo interno");
-        seedBookCopy(cleanArchitecture, programmingShelf, "INV-0005", CopyStatus.MISSING, "No localizado en revision de inventario");
-        seedBookCopy(patterns, engineeringShelf, "INV-0003", CopyStatus.AVAILABLE, "Buen estado");
-        seedBookCopy(databases, databaseShelf, "INV-0006", CopyStatus.AVAILABLE, "Incluye material complementario");
-        seedBookCopy(databases, databaseShelf, "INV-0007", CopyStatus.REMOVED, "Baja logica por deterioro");
-        seedBookCopy(networks, networksShelf, "INV-0008", CopyStatus.REPAIR, "Pendiente de reencuadernacion");
-        seedBookCopy(history, humanitiesShelf, "INV-0009", CopyStatus.AVAILABLE, "Edicion de sala");
+        seedBookCopy(administracion, adminShelf, "INV-0001", CopyStatus.AVAILABLE, "Manual de referencia");
+        seedBookCopy(emprendedor, adminShelf, "INV-0002", CopyStatus.AVAILABLE, "Incluye casos prácticos");
+        seedBookCopy(operaciones, industrialShelf, "INV-0003", CopyStatus.AVAILABLE, "Ejemplar de consulta");
+        seedBookCopy(calidad, industrialShelf, "INV-0004", CopyStatus.AVAILABLE, "Buen estado");
+        seedBookCopy(marketing, marketingShelf, "INV-0005", CopyStatus.AVAILABLE, "Edición actualizada");
+        seedBookCopy(investigacion, marketingShelf, "INV-0006", CopyStatus.AVAILABLE, "Incluye CD interactivo");
+        seedBookCopy(disenoFundamentos, designShelf, "INV-0007", CopyStatus.AVAILABLE, "Ejemplar de sala");
+        seedBookCopy(disenoGrafico, designShelf, "INV-0008", CopyStatus.AVAILABLE, "Buen estado");
+        seedBookCopy(linguistica, languagesShelf, "INV-0009", CopyStatus.AVAILABLE, "Ejemplar de consulta");
+        seedBookCopy(traduccion, languagesShelf, "INV-0010", CopyStatus.AVAILABLE, "Préstamo interno");
+        seedBookCopy(cleanCode, systemsShelf, "INV-0011", CopyStatus.AVAILABLE, "Ejemplar de consulta");
+        seedBookCopy(basesDatos, systemsShelf, "INV-0012", CopyStatus.MISSING, "No localizado en inventario");
+        seedBookCopy(comunicacionHumana, communicationShelf, "INV-0013", CopyStatus.REMOVED, "Baja lógica por deterioro");
+        seedBookCopy(comunicacionOrg, communicationShelf, "INV-0014", CopyStatus.REMOVED, "Edición desactualizada");
     }
 
     private Location seedLocation(String room, String section, String shelf, String level, String position, String code) {

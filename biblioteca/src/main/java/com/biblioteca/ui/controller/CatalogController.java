@@ -6,6 +6,7 @@ import com.biblioteca.search.query.BookSearchCriteria;
 import com.biblioteca.search.query.PageRequest;
 import com.biblioteca.search.query.PageResult;
 import com.biblioteca.service.CatalogService;
+import java.util.List;
 
 public class CatalogController {
     private final CatalogService catalogService;
@@ -20,5 +21,9 @@ public class CatalogController {
 
     public BookDetailViewModel loadBookDetail(Long bookTitleId, boolean adminView) {
         return catalogService.getBookDetail(bookTitleId, adminView);
+    }
+
+    public List<String> getCareers() {
+        return catalogService.getCareers();
     }
 }

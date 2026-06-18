@@ -76,11 +76,9 @@ Estados definidos:
 - `AVAILABLE`
 - `MISSING`
 - `REMOVED`
-- `REPAIR`
 
 Preguntas que deben cerrarse antes de implementar totalmente la UI:
 - si `MISSING` se muestra o no en la vista publica
-- si `REPAIR` cuenta como no disponible
 - si `REMOVED` desaparece del catalogo o solo del inventario visible
 
 ## Busqueda

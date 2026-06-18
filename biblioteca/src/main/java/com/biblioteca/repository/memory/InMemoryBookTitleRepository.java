@@ -13,6 +13,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class InMemoryBookTitleRepository implements BookTitleRepository {
@@ -49,6 +50,16 @@ public class InMemoryBookTitleRepository implements BookTitleRepository {
     }
 
     @Override
+    public List<String> findAllCareers() {
+        return storage.values().stream()
+                .map(BookTitle::getCareer)
+                .distinct()
+                .filter(c -> c != null && !c.isBlank())
+                .sorted()
+                .toList();
+    }
+
+    @Override
     public BookTitle save(BookTitle bookTitle) {
         if (bookTitle.getId() == null) {
             bookTitle.setId(sequence.incrementAndGet());
@@ -66,18 +77,38 @@ public class InMemoryBookTitleRepository implements BookTitleRepository {
         if (criteria == null) {
             return true;
         }
-        return contains(book.getTitle(), criteria.getText())
-                && contains(book.getAuthor(), criteria.getAuthor())
-                && contains(book.getCategory(), criteria.getCategory())
-                && contains(book.getCareer(), criteria.getCareer());
+        return matchesText(book, criteria.getText())
+                && matchesCareers(book, criteria.getCareers())
+                && matchesFirstLetters(book, criteria.getFirstLetters());
     }
 
-    private boolean contains(String field, String criteria) {
-        String normalizedCriteria = normalize(criteria);
-        if (normalizedCriteria.isBlank()) {
+    private boolean matchesText(BookTitle book, String text) {
+        if (text == null || text.isBlank()) {
             return true;
         }
-        return normalize(field).contains(normalizedCriteria);
+        String normalized = normalize(text);
+        return normalize(book.getTitle()).contains(normalized)
+                || normalize(book.getAuthor()).contains(normalized)
+                || normalize(book.getCategory()).contains(normalized)
+                || normalize(book.getCareer()).contains(normalized);
+    }
+
+    private boolean matchesCareers(BookTitle bookTitle, Set<String> careers) {
+        if (careers == null || careers.isEmpty()) {
+            return true;
+        }
+        return bookTitle.getCareer() != null && careers.contains(bookTitle.getCareer());
+    }
+
+    private boolean matchesFirstLetters(BookTitle bookTitle, Set<String> firstLetters) {
+        if (firstLetters == null || firstLetters.isEmpty()) {
+            return true;
+        }
+        String title = bookTitle.getTitle();
+        if (title == null || title.isBlank()) {
+            return false;
+        }
+        return firstLetters.contains(String.valueOf(Character.toUpperCase(title.charAt(0))));
     }
 
     private String normalize(String text) {

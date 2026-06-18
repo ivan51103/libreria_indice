@@ -1,11 +1,11 @@
 package com.biblioteca.search.query;
 
+import java.util.Set;
+
 public class BookSearchCriteria {
     private String text;
-    private String author;
-    private String category;
-    private String career;
-    private boolean availableOnly;
+    private Set<String> careers;
+    private Set<String> firstLetters;
 
     public String getText() {
         return text;
@@ -15,35 +15,19 @@ public class BookSearchCriteria {
         this.text = text;
     }
 
-    public String getAuthor() {
-        return author;
+    public Set<String> getCareers() {
+        return careers;
     }
 
-    public void setAuthor(String author) {
-        this.author = author;
+    public void setCareers(Set<String> careers) {
+        this.careers = careers;
     }
 
-    public String getCategory() {
-        return category;
+    public Set<String> getFirstLetters() {
+        return firstLetters;
     }
 
-    public void setCategory(String category) {
-        this.category = category;
-    }
-
-    public String getCareer() {
-        return career;
-    }
-
-    public void setCareer(String career) {
-        this.career = career;
-    }
-
-    public boolean isAvailableOnly() {
-        return availableOnly;
-    }
-
-    public void setAvailableOnly(boolean availableOnly) {
-        this.availableOnly = availableOnly;
+    public void setFirstLetters(Set<String> firstLetters) {
+        this.firstLetters = firstLetters;
     }
 }

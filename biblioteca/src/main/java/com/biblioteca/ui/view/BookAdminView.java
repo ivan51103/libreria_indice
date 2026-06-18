@@ -6,26 +6,37 @@ import com.biblioteca.domain.CopyStatus;
 import com.biblioteca.domain.Location;
 import com.biblioteca.service.BusinessException;
 import com.biblioteca.ui.controller.BookAdminController;
+import java.nio.file.Path;
+import java.util.List;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.StringConverter;
 
 public class BookAdminView {
     // Dialogo reutilizable para registrar o editar una obra y uno de sus ejemplares.
     private final BookAdminController bookAdminController;
+    private final List<String> careers;
     private final Runnable onSaved;
 
-    public BookAdminView(BookAdminController bookAdminController, Runnable onSaved) {
+    public BookAdminView(BookAdminController bookAdminController, List<String> careers, Runnable onSaved) {
         this.bookAdminController = bookAdminController;
+        this.careers = careers;
         this.onSaved = onSaved;
     }
 
@@ -42,8 +53,8 @@ public class BookAdminView {
         dialog.initOwner(owner);
         dialog.initModality(Modality.APPLICATION_MODAL);
         dialog.setTitle(createMode ? "Registrar libro y ejemplar" : "Editar libro y ejemplar");
-        dialog.setMinWidth(640);
-        dialog.setMinHeight(820);
+        dialog.setMinWidth(680);
+        dialog.setMinHeight(680);
         dialog.setResizable(true);
 
         TextField titleField = new TextField(value(bookTitle.getTitle()));
@@ -52,73 +63,110 @@ public class BookAdminView {
         TextField publisherField = new TextField(value(bookTitle.getPublisher()));
         TextField yearField = new TextField(bookTitle.getYear() > 0 ? String.valueOf(bookTitle.getYear()) : "");
         TextField categoryField = new TextField(value(bookTitle.getCategory()));
-        TextField careerField = new TextField(value(bookTitle.getCareer()));
+        ComboBox<String> careerField = new ComboBox<>();
+        careerField.getItems().setAll(careers);
+        careerField.setEditable(false);
+        if (bookTitle.getCareer() != null) {
+            careerField.getSelectionModel().select(bookTitle.getCareer());
+        }
         TextArea descriptionArea = new TextArea(value(bookTitle.getDescription()));
-        descriptionArea.setPrefRowCount(3);
-        TextField coverPathField = new TextField(value(bookTitle.getCoverPath()));
+        descriptionArea.setPrefRowCount(4);
+        descriptionArea.setWrapText(true);
 
         TextField inventoryCodeField = new TextField(value(bookCopy.getInventoryCode()));
         ComboBox<CopyStatus> statusBox = new ComboBox<>();
-        statusBox.getItems().addAll(CopyStatus.values());
+        statusBox.getItems().setAll(CopyStatus.values());
         statusBox.getSelectionModel().select(bookCopy.getStatus() != null ? bookCopy.getStatus() : CopyStatus.AVAILABLE);
+        statusBox.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(CopyStatus status) {
+                return status == null ? "" : translateStatus(status);
+            }
+
+            @Override
+            public CopyStatus fromString(String string) {
+                return null;
+            }
+        });
+        statusBox.setCellFactory(listView -> new ListCell<>() {
+            @Override
+            protected void updateItem(CopyStatus status, boolean empty) {
+                super.updateItem(status, empty);
+                setText(empty || status == null ? null : translateStatus(status));
+            }
+        });
+        statusBox.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(CopyStatus status, boolean empty) {
+                super.updateItem(status, empty);
+                setText(empty || status == null ? null : translateStatus(status));
+            }
+        });
         TextField notesField = new TextField(value(bookCopy.getNotes()));
 
         TextField roomField = new TextField(value(location.getRoom()));
         TextField sectionField = new TextField(value(location.getSection()));
         TextField shelfField = new TextField(value(location.getShelf()));
         TextField levelField = new TextField(value(location.getLevel()));
-        TextField positionField = new TextField(value(location.getPosition()));
         TextField codeField = new TextField(value(location.getCode()));
 
+        Label coverSelectionLabel = new Label(describeCoverPath(bookTitle.getCoverPath()));
+        coverSelectionLabel.setWrapText(true);
+        Tooltip.install(coverSelectionLabel, new Tooltip("Ruta final de la portada guardada en disco"));
+        Path[] selectedCoverFile = new Path[1];
+
+        Button selectCoverButton = new Button("Seleccionar imagen");
+        selectCoverButton.setOnAction(event -> {
+            Path selectedFile = chooseCoverFile(owner);
+            if (selectedFile != null) {
+                selectedCoverFile[0] = selectedFile;
+                coverSelectionLabel.setText(selectedFile.getFileName().toString());
+            }
+        });
+
         GridPane grid = new GridPane();
-        grid.setPadding(new Insets(16));
-        grid.setHgap(10);
-        grid.setVgap(8);
+        grid.setPadding(new Insets(18));
+        grid.setHgap(12);
+        grid.setVgap(10);
 
         int row = 0;
-        grid.add(new Label("Titulo"), 0, row);
+        grid.add(sectionLabel("Titulo"), 0, row);
         grid.add(titleField, 1, row++);
-        grid.add(new Label("Autor"), 0, row);
+        grid.add(sectionLabel("Autor"), 0, row);
         grid.add(authorField, 1, row++);
-        grid.add(new Label("ISBN"), 0, row);
+        grid.add(sectionLabel("ISBN"), 0, row);
         grid.add(isbnField, 1, row++);
-        grid.add(new Label("Editorial"), 0, row);
+        grid.add(sectionLabel("Editorial"), 0, row);
         grid.add(publisherField, 1, row++);
-        grid.add(new Label("Anio"), 0, row);
+        grid.add(sectionLabel("Anio"), 0, row);
         grid.add(yearField, 1, row++);
-        grid.add(new Label("Categoria"), 0, row);
+        grid.add(sectionLabel("Categoria"), 0, row);
         grid.add(categoryField, 1, row++);
-        grid.add(new Label("Carrera"), 0, row);
+        grid.add(sectionLabel("Carrera"), 0, row);
         grid.add(careerField, 1, row++);
-        grid.add(new Label("Descripcion"), 0, row);
+        grid.add(sectionLabel("Descripcion"), 0, row);
         grid.add(descriptionArea, 1, row++);
-        grid.add(new Label("Ruta portada"), 0, row);
-        grid.add(coverPathField, 1, row++);
-        grid.add(new Label("Codigo inventario"), 0, row);
+        grid.add(sectionLabel("Portada"), 0, row);
+        grid.add(new VBox(6, selectCoverButton, coverSelectionLabel), 1, row++);
+        grid.add(sectionLabel("Codigo de inventario"), 0, row);
         grid.add(inventoryCodeField, 1, row++);
-        grid.add(new Label("Estado"), 0, row);
+        grid.add(sectionLabel("Estado"), 0, row);
         grid.add(statusBox, 1, row++);
-        grid.add(new Label("Notas"), 0, row);
+        grid.add(sectionLabel("Notas"), 0, row);
         grid.add(notesField, 1, row++);
-        grid.add(new Label("Sala"), 0, row);
-        grid.add(roomField, 1, row++);
-        grid.add(new Label("Seccion"), 0, row);
-        grid.add(sectionField, 1, row++);
-        grid.add(new Label("Estante"), 0, row);
-        grid.add(shelfField, 1, row++);
-        grid.add(new Label("Nivel"), 0, row);
-        grid.add(levelField, 1, row++);
-        grid.add(new Label("Posicion"), 0, row);
-        grid.add(positionField, 1, row++);
-        grid.add(new Label("Codigo ubicacion"), 0, row);
+        grid.add(sectionLabel("Ubicación"), 0, row);
         grid.add(codeField, 1, row++);
 
         Button saveButton = new Button(createMode ? "Guardar" : "Actualizar");
         saveButton.setOnAction(event -> {
             try {
-                fillBookTitle(bookTitle, titleField, authorField, isbnField, publisherField, yearField, categoryField, careerField, descriptionArea, coverPathField);
+                fillBookTitle(bookTitle, titleField, authorField, isbnField, publisherField, yearField, categoryField, careerField, descriptionArea);
+                if (selectedCoverFile[0] != null) {
+                    bookTitle.setCoverPath(bookAdminController.storeCoverImage(selectedCoverFile[0], bookTitle.getIsbn()));
+                }
+
                 fillBookCopy(bookCopy, inventoryCodeField, statusBox, notesField);
-                fillLocation(location, roomField, sectionField, shelfField, levelField, positionField, codeField);
+                fillLocation(location, roomField, sectionField, shelfField, levelField, codeField);
 
                 if (createMode) {
                     bookAdminController.registerBook(bookTitle, bookCopy, location);
@@ -132,14 +180,27 @@ public class BookAdminView {
                 showError(dialog, exception.getMessage());
             }
         });
-        grid.add(saveButton, 1, row);
+
+        HBox actions = new HBox(10, saveButton);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        grid.add(actions, 1, row);
 
         ScrollPane scrollPane = new ScrollPane(grid);
         scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
 
-        dialog.setScene(new Scene(scrollPane, 680, 860));
+        dialog.setScene(new Scene(scrollPane, 700, 720));
         dialog.centerOnScreen();
         dialog.showAndWait();
+    }
+
+    private Path chooseCoverFile(Stage owner) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Seleccionar imagen de portada");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Imagenes", "*.jpg", "*.jpeg", "*.png"));
+        java.io.File file = chooser.showOpenDialog(owner);
+        return file == null ? null : file.toPath();
     }
 
     private void fillBookTitle(BookTitle bookTitle,
@@ -149,18 +210,16 @@ public class BookAdminView {
                                TextField publisherField,
                                TextField yearField,
                                TextField categoryField,
-                               TextField careerField,
-                               TextArea descriptionArea,
-                               TextField coverPathField) {
+                               ComboBox<String> careerField,
+                               TextArea descriptionArea) {
         bookTitle.setTitle(titleField.getText());
         bookTitle.setAuthor(authorField.getText());
         bookTitle.setIsbn(normalizeOptional(isbnField.getText()));
         bookTitle.setPublisher(normalizeOptional(publisherField.getText()));
         bookTitle.setYear(parseYear(yearField.getText()));
         bookTitle.setCategory(normalizeOptional(categoryField.getText()));
-        bookTitle.setCareer(normalizeOptional(careerField.getText()));
+        bookTitle.setCareer(normalizeOptional(careerField.getValue()));
         bookTitle.setDescription(normalizeOptional(descriptionArea.getText()));
-        bookTitle.setCoverPath(normalizeOptional(coverPathField.getText()));
     }
 
     private void fillBookCopy(BookCopy bookCopy,
@@ -177,13 +236,11 @@ public class BookAdminView {
                               TextField sectionField,
                               TextField shelfField,
                               TextField levelField,
-                              TextField positionField,
                               TextField codeField) {
         location.setRoom(normalizeOptional(roomField.getText()));
         location.setSection(normalizeOptional(sectionField.getText()));
         location.setShelf(normalizeOptional(shelfField.getText()));
         location.setLevel(normalizeOptional(levelField.getText()));
-        location.setPosition(normalizeOptional(positionField.getText()));
         location.setCode(normalizeOptional(codeField.getText()));
     }
 
@@ -194,7 +251,7 @@ public class BookAdminView {
         try {
             return Integer.parseInt(yearText.trim());
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("El anio debe ser numerico.");
+            throw new IllegalArgumentException("El año debe ser numérico.");
         }
     }
 
@@ -208,6 +265,31 @@ public class BookAdminView {
 
     private String value(String value) {
         return value == null ? "" : value;
+    }
+
+    private String describeCoverPath(String coverPath) {
+        if (coverPath == null || coverPath.isBlank()) {
+            return "Sin portada seleccionada";
+        }
+        try {
+            return Path.of(coverPath).getFileName().toString();
+        } catch (Exception exception) {
+            return coverPath;
+        }
+    }
+
+    private Label sectionLabel(String text) {
+        Label label = new Label(text);
+        label.setMinWidth(170);
+        return label;
+    }
+
+    private String translateStatus(CopyStatus status) {
+        return switch (status) {
+            case AVAILABLE -> "Disponible";
+            case MISSING -> "Extraviado";
+            case REMOVED -> "Retirado";
+        };
     }
 
     private BookTitle copyBookTitle(BookTitle source) {
@@ -255,5 +337,4 @@ public class BookAdminView {
         alert.setContentText(message);
         alert.showAndWait();
     }
-
 }

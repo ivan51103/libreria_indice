@@ -1,5 +1,6 @@
 package com.biblioteca.service;
 
+import com.biblioteca.config.ConnectionProvider;
 import com.biblioteca.domain.BookCopy;
 import com.biblioteca.domain.BookTitle;
 import com.biblioteca.domain.CopyStatus;
@@ -10,6 +11,7 @@ import com.biblioteca.repository.LocationRepository;
 
 public class InventoryService {
     // Coordina cambios administrativos sobre libro, ejemplar y ubicacion.
+    private final ConnectionProvider connectionProvider;
     private final BookTitleRepository bookTitleRepository;
     private final BookCopyRepository bookCopyRepository;
     private final LocationRepository locationRepository;
@@ -17,6 +19,14 @@ public class InventoryService {
     public InventoryService(BookTitleRepository bookTitleRepository,
                             BookCopyRepository bookCopyRepository,
                             LocationRepository locationRepository) {
+        this(null, bookTitleRepository, bookCopyRepository, locationRepository);
+    }
+
+    public InventoryService(ConnectionProvider connectionProvider,
+                            BookTitleRepository bookTitleRepository,
+                            BookCopyRepository bookCopyRepository,
+                            LocationRepository locationRepository) {
+        this.connectionProvider = connectionProvider;
         this.bookTitleRepository = bookTitleRepository;
         this.bookCopyRepository = bookCopyRepository;
         this.locationRepository = locationRepository;
@@ -25,20 +35,24 @@ public class InventoryService {
     public void registerBook(BookTitle bookTitle, BookCopy bookCopy, Location location) {
         validateBookTitle(bookTitle);
         validateBookCopy(bookCopy);
+        normalizeLocation(location);
         validateLocation(location);
         validateUniqueBookTitle(bookTitle);
         validateUniqueInventoryCode(bookCopy);
         validateUniqueLocationCode(location);
 
         // El orden importa: primero se persiste la ubicacion, luego la obra y al final el ejemplar.
-        Location storedLocation = locationRepository.save(location);
-        BookTitle storedTitle = bookTitleRepository.save(bookTitle);
-        bookCopy.setBookTitleId(storedTitle.getId());
-        bookCopy.setLocationId(storedLocation.getId());
         if (bookCopy.getStatus() == null) {
             bookCopy.setStatus(CopyStatus.AVAILABLE);
         }
-        bookCopyRepository.save(bookCopy);
+        executeAtomicWrite(connection -> {
+            Location storedLocation = saveLocation(location, connection);
+            BookTitle storedTitle = saveBookTitle(bookTitle, connection);
+            bookCopy.setBookTitleId(storedTitle.getId());
+            bookCopy.setLocationId(storedLocation.getId());
+            saveBookCopy(bookCopy, connection);
+            return null;
+        });
     }
 
     public void updateBook(BookTitle bookTitle) {
@@ -56,15 +70,19 @@ public class InventoryService {
     public void updateBookEntry(BookTitle bookTitle, BookCopy bookCopy, Location location) {
         validateBookTitle(bookTitle);
         validateBookCopy(bookCopy);
+        normalizeLocation(location);
         validateLocation(location);
         validateUniqueBookTitle(bookTitle);
         validateUniqueInventoryCode(bookCopy);
         validateUniqueLocationCode(location);
 
-        Location storedLocation = locationRepository.save(location);
-        bookTitleRepository.save(bookTitle);
-        bookCopy.setLocationId(storedLocation.getId());
-        bookCopyRepository.save(bookCopy);
+        executeAtomicWrite(connection -> {
+            Location storedLocation = saveLocation(location, connection);
+            saveBookTitle(bookTitle, connection);
+            bookCopy.setLocationId(storedLocation.getId());
+            saveBookCopy(bookCopy, connection);
+            return null;
+        });
     }
 
     public void changeCopyStatus(Long copyId, CopyStatus status) {
@@ -88,12 +106,23 @@ public class InventoryService {
     }
 
     private void validateLocation(Location location) {
-        if (location == null
-                || isBlank(location.getRoom())
-                || isBlank(location.getSection())
-                || isBlank(location.getShelf())
-                || isBlank(location.getCode())) {
-            throw new BusinessException("La ubicacion requiere sala, seccion, estante y codigo.");
+        if (location == null || isBlank(location.getCode())) {
+            throw new BusinessException("La ubicacion es obligatoria.");
+        }
+    }
+
+    private void normalizeLocation(Location location) {
+        if (location == null) {
+            return;
+        }
+        if (isBlank(location.getRoom())) {
+            location.setRoom("Sin especificar");
+        }
+        if (isBlank(location.getSection())) {
+            location.setSection("Sin especificar");
+        }
+        if (isBlank(location.getShelf())) {
+            location.setShelf("Sin especificar");
         }
     }
 
@@ -119,6 +148,25 @@ public class InventoryService {
         if (existing != null && !existing.getId().equals(location.getId())) {
             throw new BusinessException("Ya existe una ubicacion registrada con ese codigo.");
         }
+    }
+
+    private <T> T executeAtomicWrite(java.util.function.Function<java.sql.Connection, T> work) {
+        if (connectionProvider == null) {
+            return work.apply(null);
+        }
+        return connectionProvider.withTransaction(work);
+    }
+
+    private Location saveLocation(Location location, java.sql.Connection connection) {
+        return connection == null ? locationRepository.save(location) : locationRepository.save(location, connection);
+    }
+
+    private BookTitle saveBookTitle(BookTitle bookTitle, java.sql.Connection connection) {
+        return connection == null ? bookTitleRepository.save(bookTitle) : bookTitleRepository.save(bookTitle, connection);
+    }
+
+    private BookCopy saveBookCopy(BookCopy bookCopy, java.sql.Connection connection) {
+        return connection == null ? bookCopyRepository.save(bookCopy) : bookCopyRepository.save(bookCopy, connection);
     }
 
     private boolean isBlank(String value) {

@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 public class SQLiteBookTitleRepository extends SQLiteSupport implements BookTitleRepository {
     public SQLiteBookTitleRepository(ConnectionProvider connectionProvider) {
@@ -106,11 +107,35 @@ public class SQLiteBookTitleRepository extends SQLiteSupport implements BookTitl
     }
 
     @Override
+    public List<String> findAllCareers() {
+        String sql = "SELECT DISTINCT career FROM book_titles WHERE career IS NOT NULL AND career <> '' ORDER BY career ASC";
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            List<String> careers = new ArrayList<>();
+            while (resultSet.next()) {
+                careers.add(resultSet.getString("career"));
+            }
+            return careers;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("No se pudieron consultar las carreras", exception);
+        }
+    }
+
+    @Override
     public BookTitle save(BookTitle bookTitle) {
         if (bookTitle.getId() == null) {
             return insert(bookTitle);
         }
         return update(bookTitle);
+    }
+
+    @Override
+    public BookTitle save(BookTitle bookTitle, Connection connection) {
+        if (bookTitle.getId() == null) {
+            return insert(bookTitle, connection);
+        }
+        return update(bookTitle, connection);
     }
 
     @Override
@@ -127,13 +152,20 @@ public class SQLiteBookTitleRepository extends SQLiteSupport implements BookTitl
     }
 
     private BookTitle insert(BookTitle bookTitle) {
+        try (Connection connection = getConnection()) {
+            return insert(bookTitle, connection);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("No se pudo registrar el libro", exception);
+        }
+    }
+
+    private BookTitle insert(BookTitle bookTitle, Connection connection) {
         String sql = """
             INSERT INTO book_titles (title, author, isbn, publisher, year, category, career, description, cover_path)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
             fillStatement(statement, bookTitle);
             statement.executeUpdate();
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -148,14 +180,21 @@ public class SQLiteBookTitleRepository extends SQLiteSupport implements BookTitl
     }
 
     private BookTitle update(BookTitle bookTitle) {
+        try (Connection connection = getConnection()) {
+            return update(bookTitle, connection);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("No se pudo actualizar el libro", exception);
+        }
+    }
+
+    private BookTitle update(BookTitle bookTitle, Connection connection) {
         String sql = """
             UPDATE book_titles
             SET title = ?, author = ?, isbn = ?, publisher = ?, year = ?, category = ?, career = ?, description = ?, cover_path = ?
             WHERE id = ?
             """;
 
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
             fillStatement(statement, bookTitle);
             statement.setLong(10, bookTitle.getId());
             statement.executeUpdate();
@@ -219,18 +258,38 @@ public class SQLiteBookTitleRepository extends SQLiteSupport implements BookTitl
         if (criteria == null) {
             return true;
         }
-        return contains(bookTitle.getTitle(), criteria.getText())
-                && contains(bookTitle.getAuthor(), criteria.getAuthor())
-                && contains(bookTitle.getCategory(), criteria.getCategory())
-                && contains(bookTitle.getCareer(), criteria.getCareer());
+        return matchesText(bookTitle, criteria.getText())
+                && matchesCareers(bookTitle, criteria.getCareers())
+                && matchesFirstLetters(bookTitle, criteria.getFirstLetters());
     }
 
-    private boolean contains(String fieldValue, String criteriaValue) {
-        String normalizedCriteria = normalize(criteriaValue);
-        if (normalizedCriteria.isBlank()) {
+    private boolean matchesText(BookTitle bookTitle, String text) {
+        if (text == null || text.isBlank()) {
             return true;
         }
-        return normalize(fieldValue).contains(normalizedCriteria);
+        String normalized = normalize(text);
+        return normalize(bookTitle.getTitle()).contains(normalized)
+                || normalize(bookTitle.getAuthor()).contains(normalized)
+                || normalize(bookTitle.getCategory()).contains(normalized)
+                || normalize(bookTitle.getCareer()).contains(normalized);
+    }
+
+    private boolean matchesCareers(BookTitle bookTitle, Set<String> careers) {
+        if (careers == null || careers.isEmpty()) {
+            return true;
+        }
+        return bookTitle.getCareer() != null && careers.contains(bookTitle.getCareer());
+    }
+
+    private boolean matchesFirstLetters(BookTitle bookTitle, Set<String> firstLetters) {
+        if (firstLetters == null || firstLetters.isEmpty()) {
+            return true;
+        }
+        String title = bookTitle.getTitle();
+        if (title == null || title.isBlank()) {
+            return false;
+        }
+        return firstLetters.contains(String.valueOf(Character.toUpperCase(title.charAt(0))));
     }
 
     private String normalize(String text) {

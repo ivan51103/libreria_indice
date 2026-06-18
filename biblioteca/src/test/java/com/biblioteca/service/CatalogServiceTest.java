@@ -19,6 +19,7 @@ import com.biblioteca.search.query.BookSortField;
 import com.biblioteca.search.query.PageRequest;
 import com.biblioteca.search.query.PageResult;
 import com.biblioteca.search.query.SortDirection;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +34,7 @@ class CatalogServiceTest {
         bookTitleRepository = new InMemoryBookTitleRepository();
         bookCopyRepository = new InMemoryBookCopyRepository();
         locationRepository = new InMemoryLocationRepository();
-        catalogService = new CatalogService(bookTitleRepository, bookCopyRepository, locationRepository, new SearchService());
+        catalogService = new CatalogService(bookTitleRepository, bookCopyRepository, locationRepository);
     }
 
     @Test
@@ -85,33 +86,13 @@ class CatalogServiceTest {
     }
 
     @Test
-    void availableOnlyShouldKeepOnlyTitlesWithAvailableCopies() {
-        BookTitle availableTitle = saveTitle("Disponible");
-        BookTitle repairTitle = saveTitle("En Reparacion");
+    void textSearchShouldFindByTitleOrAuthor() {
+        BookTitle title = saveTitle("Estructuras de Datos");
         Location location = saveLocation("LOC-A");
-        saveCopy(availableTitle.getId(), location, "INV-A", CopyStatus.AVAILABLE);
-        saveCopy(repairTitle.getId(), location, "INV-B", CopyStatus.REPAIR);
+        saveCopy(title.getId(), location, "INV-A", CopyStatus.AVAILABLE);
 
         BookSearchCriteria criteria = new BookSearchCriteria();
-        criteria.setAvailableOnly(true);
-
-        PageResult<BookCatalogItemView> result = catalogService.getCatalog(criteria, pageRequest(), false);
-
-        assertEquals(1, result.getItems().size());
-        assertEquals("Disponible", result.getItems().get(0).getTitle());
-    }
-
-    @Test
-    void shouldApplyCategoryAndCareerFiltersFromCatalogService() {
-        BookTitle systemsTitle = saveTitle("Estructuras de Datos", "Programacion", "Sistemas");
-        BookTitle lawTitle = saveTitle("Derecho Civil", "Derecho", "Derecho");
-        Location location = saveLocation("LOC-F");
-        saveCopy(systemsTitle.getId(), location, "INV-SYS", CopyStatus.AVAILABLE);
-        saveCopy(lawTitle.getId(), location, "INV-LAW", CopyStatus.AVAILABLE);
-
-        BookSearchCriteria criteria = new BookSearchCriteria();
-        criteria.setCategory("programacion");
-        criteria.setCareer("sistemas");
+        criteria.setText("estructuras");
 
         PageResult<BookCatalogItemView> result = catalogService.getCatalog(criteria, pageRequest(), false);
 
@@ -120,18 +101,34 @@ class CatalogServiceTest {
     }
 
     @Test
-    void availableOnlyShouldIgnoreMissingAndRepairCopies() {
-        BookTitle mixedTitle = saveTitle("Redes");
-        Location location = saveLocation("LOC-N");
-        saveCopy(mixedTitle.getId(), location, "INV-MISS", CopyStatus.MISSING);
-        saveCopy(mixedTitle.getId(), location, "INV-REP", CopyStatus.REPAIR);
+    void shouldFilterByCareerFromCatalogService() {
+        BookTitle systemsTitle = saveTitle("Estructuras de Datos", "Programacion", "Sistemas");
+        BookTitle lawTitle = saveTitle("Derecho Civil", "Derecho", "Derecho");
+        Location location = saveLocation("LOC-F");
+        saveCopy(systemsTitle.getId(), location, "INV-SYS", CopyStatus.AVAILABLE);
+        saveCopy(lawTitle.getId(), location, "INV-LAW", CopyStatus.AVAILABLE);
 
         BookSearchCriteria criteria = new BookSearchCriteria();
-        criteria.setAvailableOnly(true);
+        criteria.setText("estructuras");
+        criteria.setCareers(Set.of("Sistemas"));
 
         PageResult<BookCatalogItemView> result = catalogService.getCatalog(criteria, pageRequest(), false);
 
-        assertTrue(result.getItems().isEmpty());
+        assertEquals(1, result.getItems().size());
+        assertEquals("Estructuras de Datos", result.getItems().get(0).getTitle());
+    }
+
+    @Test
+    void titlesWithOnlyMissingCopiesStillAppearForNonAdmin() {
+        BookTitle mixedTitle = saveTitle("Redes");
+        Location location = saveLocation("LOC-N");
+        saveCopy(mixedTitle.getId(), location, "INV-MISS1", CopyStatus.MISSING);
+        saveCopy(mixedTitle.getId(), location, "INV-MISS2", CopyStatus.MISSING);
+
+        PageResult<BookCatalogItemView> result = catalogService.getCatalog(null, pageRequest(), false);
+
+        assertEquals(1, result.getItems().size());
+        assertEquals(0, result.getItems().get(0).getAvailableCopies());
     }
 
     @Test

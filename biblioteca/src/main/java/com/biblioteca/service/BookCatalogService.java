@@ -9,19 +9,17 @@ import com.biblioteca.search.query.BookCatalogItemView;
 import com.biblioteca.search.query.BookSearchCriteria;
 import com.biblioteca.search.query.PageRequest;
 import com.biblioteca.search.query.PageResult;
+import java.text.Normalizer;
 import java.util.List;
 
 public class BookCatalogService {
     private final BookTitleRepository bookTitleRepository;
     private final BookCopyRepository bookCopyRepository;
-    private final SearchService searchService;
 
     public BookCatalogService(BookTitleRepository bookTitleRepository,
-                              BookCopyRepository bookCopyRepository,
-                              SearchService searchService) {
+                              BookCopyRepository bookCopyRepository) {
         this.bookTitleRepository = bookTitleRepository;
         this.bookCopyRepository = bookCopyRepository;
-        this.searchService = searchService;
     }
 
     public PageResult<BookCatalogItemView> listBooks(PageRequest pageRequest) {
@@ -29,10 +27,15 @@ public class BookCatalogService {
     }
 
     public PageResult<BookCatalogItemView> searchBooks(BookSearchCriteria criteria, PageRequest pageRequest) {
-        if (criteria == null || searchService.normalize(criteria.getText()).isBlank()) {
+        if (criteria == null || normalize(criteria.getText()).isBlank()) {
             return listBooks(pageRequest);
         }
         return map(bookTitleRepository.search(criteria, pageRequest));
+    }
+
+    private String normalize(String text) {
+        if (text == null) return "";
+        return Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase().trim();
     }
 
     private PageResult<BookCatalogItemView> map(PageResult<BookTitle> titles) {

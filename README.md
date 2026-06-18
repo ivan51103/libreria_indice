@@ -1,16 +1,17 @@
 # Indice Digital de Biblioteca
 
-Aplicacion Java para consultar y administrar el catalogo de una biblioteca fisica, con enfoque en exploracion visual, detalle bibliografico y ubicacion fisica exacta de ejemplares.
+Aplicacion Java para consultar y administrar el catalogo de una biblioteca fisica, con enfoque en exploracion visual, detalle bibliografico y ubicacion fisica exacta de ejemplares. La direccion visual objetivo es un estilo tipo Netflix, con predominio de colores azules y blancos, tarjetas limpias y detalle destacado.
 
 ## Estado actual
 - Aplicacion Java con `Maven` y UI en `JavaFX`
 - Persistencia principal en `SQLite` mediante repositorios JDBC
-- Catalogo visible desde el inicio para invitados y administradores
+- Catalogo visible desde el inicio para invitados y administradores, con una UI orientada a una experiencia visual tipo Netflix
 - Busqueda por texto, autor, categoria, carrera y disponibilidad
-- Detalle de libro con ejemplares, estados y ubicaciones
+- Detalle de libro con ejemplares, estados, ubicaciones y una presentacion visual mas cinematografica
 - Administracion basica para alta, edicion y cambio de estado de ejemplares
 - Autenticacion de administrador con hash `PBKDF2WithHmacSHA256`
 - Pruebas automatizadas con `JUnit 5`
+- Estados vigentes de ejemplar: `AVAILABLE`, `MISSING`, `REMOVED`
 
 ## Tecnologias usadas
 - `Java 17`
@@ -69,7 +70,7 @@ Tambien existe acceso como invitado desde la pantalla inicial.
 
 ## Base de datos
 - Motor: `SQLite`
-- Ruta configurada: `src/main/resources/biblioteca.db`
+- Ruta configurada en ejecucion: `~/.biblioteca/biblioteca.db`
 - Inicializacion automatica: `DatabaseInitializer`
 - Datos semilla: `AppConfig`
 
@@ -81,7 +82,7 @@ Tablas principales:
 
 Los datos semilla se cargan de forma idempotente por usuario, ISBN, codigo de ubicacion y codigo de inventario. Esto permite ampliar datos de demo sin duplicar registros.
 
-Para una demo limpia se puede eliminar `src/main/resources/biblioteca.db` antes de ejecutar. La aplicacion recrea tablas y datos semilla al iniciar.
+Para una demo limpia se puede eliminar `~/.biblioteca/biblioteca.db` antes de ejecutar. La aplicacion recrea tablas y datos semilla al iniciar.
 
 ## Flujo funcional esperado
 1. El usuario entra como invitado o administrador.
@@ -98,7 +99,7 @@ Para una demo limpia se puede eliminar `src/main/resources/biblioteca.db` antes 
 - Se prefiere baja logica mediante estado antes que borrado fisico.
 - `REMOVED` se oculta para invitados.
 - `AVAILABLE` cuenta como disponible.
-- `MISSING` y `REPAIR` son visibles, pero no cuentan como disponibles.
+- `MISSING` es visible, pero no cuenta como disponible.
 
 ## Paquetes principales
 - `app`: arranque de la aplicacion
@@ -117,6 +118,7 @@ Para una demo limpia se puede eliminar `src/main/resources/biblioteca.db` antes 
 - [plan-desarrollo-biblioteca.md](/home/debian/codex/plan-desarrollo-biblioteca.md)
 - [avance-reciente.md](/home/debian/codex/avance-reciente.md)
 - [guia-entrega-biblioteca.md](/home/debian/codex/guia-entrega-biblioteca.md)
+- [project_context.md](/home/debian/codex/project_context.md)
 - [contexto-inicio-desarrollo-biblioteca.md](/home/debian/codex/contexto-inicio-desarrollo-biblioteca.md)
 - [diagrama-contexto-biblioteca.puml](/home/debian/codex/diagrama-contexto-biblioteca.puml)
 - [diagrama-casos-uso-biblioteca.puml](/home/debian/codex/diagrama-casos-uso-biblioteca.puml)

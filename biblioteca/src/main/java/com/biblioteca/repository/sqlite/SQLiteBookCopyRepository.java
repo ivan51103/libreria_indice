@@ -93,15 +93,31 @@ public class SQLiteBookCopyRepository extends SQLiteSupport implements BookCopyR
     }
 
     @Override
+    public BookCopy save(BookCopy bookCopy, Connection connection) {
+        if (bookCopy.getId() == null) {
+            return insert(bookCopy, connection);
+        }
+        return update(bookCopy, connection);
+    }
+
+    @Override
     public void updateStatus(Long copyId, CopyStatus status) {
+        try (Connection connection = getConnection()) {
+            updateStatus(copyId, status, connection);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("No se pudo actualizar el estado del ejemplar", exception);
+        }
+    }
+
+    @Override
+    public void updateStatus(Long copyId, CopyStatus status, Connection connection) {
         String sql = """
             UPDATE book_copies
             SET status = ?
             WHERE id = ?
             """;
 
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, status.name());
             statement.setLong(2, copyId);
             statement.executeUpdate();
@@ -124,13 +140,20 @@ public class SQLiteBookCopyRepository extends SQLiteSupport implements BookCopyR
     }
 
     private BookCopy insert(BookCopy bookCopy) {
+        try (Connection connection = getConnection()) {
+            return insert(bookCopy, connection);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("No se pudo registrar el ejemplar", exception);
+        }
+    }
+
+    private BookCopy insert(BookCopy bookCopy, Connection connection) {
         String sql = """
             INSERT INTO book_copies (book_title_id, inventory_code, location_id, status, notes)
             VALUES (?, ?, ?, ?, ?)
             """;
 
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
             statement.setLong(1, bookCopy.getBookTitleId());
             statement.setString(2, bookCopy.getInventoryCode());
             statement.setLong(3, bookCopy.getLocationId());
@@ -149,14 +172,21 @@ public class SQLiteBookCopyRepository extends SQLiteSupport implements BookCopyR
     }
 
     private BookCopy update(BookCopy bookCopy) {
+        try (Connection connection = getConnection()) {
+            return update(bookCopy, connection);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("No se pudo actualizar el ejemplar", exception);
+        }
+    }
+
+    private BookCopy update(BookCopy bookCopy, Connection connection) {
         String sql = """
             UPDATE book_copies
             SET book_title_id = ?, inventory_code = ?, location_id = ?, status = ?, notes = ?
             WHERE id = ?
             """;
 
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setLong(1, bookCopy.getBookTitleId());
             statement.setString(2, bookCopy.getInventoryCode());
             statement.setLong(3, bookCopy.getLocationId());

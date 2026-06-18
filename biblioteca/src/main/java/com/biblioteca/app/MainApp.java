@@ -4,7 +4,7 @@ import com.biblioteca.config.AppConfig;
 import com.biblioteca.ui.controller.BookAdminController;
 import com.biblioteca.ui.controller.CatalogController;
 import com.biblioteca.ui.controller.LoginController;
-import com.biblioteca.ui.view.LoginView;
+import com.biblioteca.ui.view.CatalogView;
 import javafx.application.Application;
 import javafx.stage.Stage;
 
@@ -16,8 +16,8 @@ public class MainApp extends Application {
         CatalogController catalogController = new CatalogController(config.getCatalogService());
         BookAdminController bookAdminController = new BookAdminController(config.getInventoryService());
 
-        LoginView loginView = new LoginView(loginController, catalogController, bookAdminController, primaryStage);
-        loginView.show();
+        CatalogView catalogView = new CatalogView(catalogController, bookAdminController, loginController, loginController.loginAsGuest());
+        catalogView.show();
     }
 
     public static void main(String[] args) {

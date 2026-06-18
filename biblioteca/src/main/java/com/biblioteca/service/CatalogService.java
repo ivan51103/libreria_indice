@@ -12,25 +12,22 @@ import com.biblioteca.search.query.BookDetailViewModel;
 import com.biblioteca.search.query.BookSearchCriteria;
 import com.biblioteca.search.query.PageRequest;
 import com.biblioteca.search.query.PageResult;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public class CatalogService {
-    // Este servicio compone la vista publica del catalogo a partir del dominio persistido.
     private final BookTitleRepository bookTitleRepository;
     private final BookCopyRepository bookCopyRepository;
     private final LocationRepository locationRepository;
-    private final SearchService searchService;
 
     public CatalogService(BookTitleRepository bookTitleRepository,
                           BookCopyRepository bookCopyRepository,
-                          LocationRepository locationRepository,
-                          SearchService searchService) {
+                          LocationRepository locationRepository) {
         this.bookTitleRepository = bookTitleRepository;
         this.bookCopyRepository = bookCopyRepository;
         this.locationRepository = locationRepository;
-        this.searchService = searchService;
     }
 
     public PageResult<BookCatalogItemView> getCatalog(BookSearchCriteria criteria, PageRequest pageRequest, boolean adminView) {
@@ -38,7 +35,6 @@ public class CatalogService {
         List<BookCatalogItemView> items = titles.stream()
                 .map(bookTitle -> toCatalogItem(bookTitle, adminView))
                 .filter(Objects::nonNull)
-                .filter(item -> criteria == null || !criteria.isAvailableOnly() || item.getAvailableCopies() > 0)
                 .toList();
 
         return toPage(items, pageRequest);
@@ -50,7 +46,6 @@ public class CatalogService {
             return null;
         }
 
-        // El detalle une la obra con sus ejemplares fisicos y ubicaciones reales.
         List<BookCopy> copies = filterCopies(bookCopyRepository.findByBookTitleId(bookTitleId), adminView);
         if (!adminView && copies.isEmpty()) {
             return null;
@@ -71,15 +66,29 @@ public class CatalogService {
         return detail;
     }
 
+    public List<String> getCareers() {
+        return bookTitleRepository.findAllCareers();
+    }
+
     private boolean hasSearchCriteria(BookSearchCriteria criteria) {
         if (criteria == null) {
             return false;
         }
-        return !searchService.normalize(criteria.getText()).isBlank()
-                || !searchService.normalize(criteria.getAuthor()).isBlank()
-                || !searchService.normalize(criteria.getCategory()).isBlank()
-                || !searchService.normalize(criteria.getCareer()).isBlank()
-                || criteria.isAvailableOnly();
+        return !isBlank(criteria.getText())
+                || (criteria.getCareers() != null && !criteria.getCareers().isEmpty())
+                || (criteria.getFirstLetters() != null && !criteria.getFirstLetters().isEmpty());
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || normalize(value).isBlank();
+    }
+
+    private String normalize(String text) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(text, Normalizer.Form.NFD);
+        return normalized.replaceAll("\\p{M}", "").toLowerCase().trim();
     }
 
     private BookCatalogItemView toCatalogItem(BookTitle bookTitle, boolean adminView) {
@@ -88,7 +97,6 @@ public class CatalogService {
             return null;
         }
 
-        // La disponibilidad publica se calcula por ejemplares en estado AVAILABLE.
         long availableCopies = copies.stream()
                 .filter(copy -> copy.getStatus() == CopyStatus.AVAILABLE)
                 .count();
@@ -104,7 +112,6 @@ public class CatalogService {
     }
 
     private List<BookTitle> loadMatchingTitles(BookSearchCriteria criteria, PageRequest pageRequest) {
-        // Se consultan todas las coincidencias y luego se aplican reglas de visibilidad por estado.
         PageRequest fullRequest = new PageRequest();
         fullRequest.setPage(0);
         fullRequest.setSize(10_000);

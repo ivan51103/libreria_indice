@@ -107,7 +107,7 @@ Objetivo: habilitar operacion real del inventario.
 - Edicion de datos bibliograficos
 - Edicion de datos del ejemplar
 - Cambio de ubicacion
-- Cambio de estado `AVAILABLE`, `MISSING`, `REMOVED`, `REPAIR`
+- Cambio de estado `AVAILABLE`, `MISSING`, `REMOVED`
 - Evitar borrado fisico como flujo principal
 
 Entregables:

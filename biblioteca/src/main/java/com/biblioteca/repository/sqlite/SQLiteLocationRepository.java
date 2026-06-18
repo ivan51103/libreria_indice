@@ -65,14 +65,29 @@ public class SQLiteLocationRepository extends SQLiteSupport implements LocationR
         return update(location);
     }
 
+    @Override
+    public Location save(Location location, Connection connection) {
+        if (location.getId() == null) {
+            return insert(location, connection);
+        }
+        return update(location, connection);
+    }
+
     private Location insert(Location location) {
+        try (Connection connection = getConnection()) {
+            return insert(location, connection);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("No se pudo registrar la ubicacion", exception);
+        }
+    }
+
+    private Location insert(Location location, Connection connection) {
         String sql = """
             INSERT INTO locations (room, section, shelf, level, position, code)
             VALUES (?, ?, ?, ?, ?, ?)
             """;
 
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
             statement.setString(1, location.getRoom());
             statement.setString(2, location.getSection());
             statement.setString(3, location.getShelf());
@@ -92,14 +107,21 @@ public class SQLiteLocationRepository extends SQLiteSupport implements LocationR
     }
 
     private Location update(Location location) {
+        try (Connection connection = getConnection()) {
+            return update(location, connection);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("No se pudo actualizar la ubicacion", exception);
+        }
+    }
+
+    private Location update(Location location, Connection connection) {
         String sql = """
             UPDATE locations
             SET room = ?, section = ?, shelf = ?, level = ?, position = ?, code = ?
             WHERE id = ?
             """;
 
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, location.getRoom());
             statement.setString(2, location.getSection());
             statement.setString(3, location.getShelf());

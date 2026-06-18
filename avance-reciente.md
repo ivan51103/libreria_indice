@@ -116,7 +116,7 @@
 - Para invitados, los ejemplares `REMOVED` ya no aparecen en catalogo ni en detalle.
 - Para administradores, los ejemplares `REMOVED` siguen visibles para gestion.
 - Los ejemplares `AVAILABLE` cuentan como disponibles.
-- Los ejemplares `MISSING` y `REPAIR` siguen visibles, pero no cuentan como disponibles.
+- Los ejemplares `MISSING` siguen visibles, pero no cuentan como disponibles.
 - Si un libro solo tiene ejemplares `REMOVED`, desaparece del catalogo publico.
 
 ## Cobertura agregada para esta regla
@@ -140,7 +140,7 @@
 ## Cierre de fase 8 - Pruebas
 - Se agregaron pruebas para `SQLiteUserRepository`, cubriendo alta, consulta por usuario, actualizacion y usuario inexistente.
 - Se agregaron pruebas para `AuthorizationService`, confirmando que solo una sesion activa `ADMIN` puede administrar catalogo.
-- Se amplio `CatalogServiceTest` para cubrir filtros por categoria/carrera, disponibilidad sin contar `MISSING` ni `REPAIR`, y paginacion despues de ocultar ejemplares `REMOVED`.
+- Se amplio `CatalogServiceTest` para cubrir filtros por categoria/carrera, disponibilidad sin contar `MISSING`, y paginacion despues de ocultar ejemplares `REMOVED`.
 - Con esto quedan cubiertos los puntos principales de la fase: servicios, seguridad, busqueda/filtros, repositorios `SQLite` e integracion alta-consulta-cambio de estado.
 
 ## Archivos clave agregados o ampliados
@@ -153,7 +153,7 @@
 - Resultado actual: 32 pruebas, 0 fallos, 0 errores.
 
 ## Preparacion previa a fase 9
-- Se ampliaron los datos semilla para demo con mas titulos, varios ejemplares por obra, ubicaciones distintas y estados `AVAILABLE`, `MISSING`, `REPAIR` y `REMOVED`.
+- Se ampliaron los datos semilla para demo con mas titulos, varios ejemplares por obra, ubicaciones distintas y estados `AVAILABLE`, `MISSING` y `REMOVED`.
 - El sembrado ahora es idempotente por usuario, ISBN, codigo de ubicacion y codigo de inventario, para enriquecer bases existentes sin duplicar registros.
 - Se actualizo `README.md` para reflejar el estado real del proyecto: JavaFX, SQLite, credenciales, ejecucion, pruebas y reglas de visibilidad.
 - Se actualizo JavaFX de `21.0.2` a `21.0.10` y la compilacion Maven a `release 17`, eliminando warnings previos de OpenJFX y del compilador.
@@ -194,3 +194,8 @@
 - Se confirmo que no se versionan artefactos generados, JARs, `target/`, bases SQLite ni archivos locales de Codex.
 - Se agrego `biblioteca/src/main/resources/.gitkeep` para conservar la carpeta de recursos sin subir `biblioteca.db`.
 - Se creo el commit inicial estable del proyecto.
+
+## Fase 10 - Preparación para Producción Monopuesto
+- Se modificó `ConnectionProvider.java` para utilizar una ruta de base de datos dinámica localizada en el directorio de usuario (`~/.biblioteca/biblioteca.db`).
+- Se añadió la creación automática del directorio padre de la base de datos al arrancar para evitar fallos de inicialización.
+- Se verificó la suite completa de pruebas (32 pruebas pasando con éxito).
