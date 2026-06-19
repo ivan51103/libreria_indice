@@ -21,6 +21,17 @@
             <version>3.46.1.3</version>
         </dependency>
         <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.16</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-nop</artifactId>
+            <version>2.0.16</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
@@ -35,6 +46,28 @@
 
     <build>
         <plugins>
+            <!-- Añade src/test-fixed como directorio adicional de fuentes de test
+                 para que los archivos corregidos (sin REPAIR) sean compilados por Maven.
+                 Los tests duplicados del directorio root se excluyen via surefire. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>add-test-source</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>add-test-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>src/test-fixed/java</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -71,6 +104,19 @@
                 <version>3.2.5</version>
             </plugin>
             <plugin>
+                <!-- Excluir de la compilacion de test los archivos originales de root
+                     que contienen CopyStatus.REPAIR (ya reemplazados en src/test-fixed) -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <testExcludes>
+                        <testExclude>**/repository/sqlite/SQLiteRepositoryTest.java</testExclude>
+                        <testExclude>**/integration/InventoryCatalogSQLiteIntegrationTest.java</testExclude>
+                    </testExcludes>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
@@ -81,3 +127,4 @@
         </plugins>
     </build>
 </project>
+
