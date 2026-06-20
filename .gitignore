@@ -1,5 +1,16 @@
 # Maven
 /biblioteca/target/
+/biblioteca/target_old/
+
+# Build artifacts
+*.deb
+*.rpm
+*.exe
+*.msi
+
+# Workspace root icons (copies)
+/app.ico
+/app.png
 
 # Java
 *.class

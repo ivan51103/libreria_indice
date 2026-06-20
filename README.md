@@ -115,10 +115,27 @@ Para una demo limpia se puede eliminar `~/.biblioteca/biblioteca.db` antes de ej
 - `ui.view`: interfaz JavaFX
 
 ## Documentacion del proyecto
+
+### Instrucciones para IA o agentes de desarrollo
+
+Antes de proponer cambios, generar documentacion, implementar funcionalidades o responder sobre el contexto general del proyecto, la IA debe leer los archivos `.md` principales del repositorio. Estos documentos contienen el planteamiento, metodologia, modelado, estado actual y lineamientos de desarrollo.
+
+Archivos de contexto general que deben revisarse:
+
+- [EstrucutraProyecto.md](/home/debian/codex/EstrucutraProyecto.md)
+- [Metodologia.md](/home/debian/codex/Metodologia.md)
+- [ModeladoSistema.md](/home/debian/codex/ModeladoSistema.md)
+- [RequerimientosSistemaQR.md](/home/debian/codex/RequerimientosSistemaQR.md)
+- [ModeloBaseDatosQR.md](/home/debian/codex/ModeloBaseDatosQR.md)
+- [project_context.md](/home/debian/codex/project_context.md)
+- [implementation_plan.md](/home/debian/codex/implementation_plan.md)
+- [task.md](/home/debian/codex/task.md)
+
+Documentacion especifica del sistema de biblioteca:
+
 - [plan-desarrollo-biblioteca.md](/home/debian/codex/plan-desarrollo-biblioteca.md)
 - [avance-reciente.md](/home/debian/codex/avance-reciente.md)
 - [guia-entrega-biblioteca.md](/home/debian/codex/guia-entrega-biblioteca.md)
-- [project_context.md](/home/debian/codex/project_context.md)
 - [contexto-inicio-desarrollo-biblioteca.md](/home/debian/codex/contexto-inicio-desarrollo-biblioteca.md)
 - [diagrama-contexto-biblioteca.puml](/home/debian/codex/diagrama-contexto-biblioteca.puml)
 - [diagrama-casos-uso-biblioteca.puml](/home/debian/codex/diagrama-casos-uso-biblioteca.puml)

@@ -143,7 +143,7 @@ Se elimina la pantalla de login inicial. La aplicación abre directamente el cat
 
 # Rediseño UI Completo — Estilo Netflix (Azul)
 
-Estado: pendiente.
+Estado: implementada.
 
 ## Resumen
 Rediseño completo de las 3 vistas (CatalogView, LoginView, BookAdminView) con paleta azul dominante, animaciones, hover effects, layout responsivo y consistencia visual tipo Netflix.

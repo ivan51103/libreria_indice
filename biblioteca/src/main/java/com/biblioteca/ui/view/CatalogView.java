@@ -16,32 +16,36 @@ import com.biblioteca.security.UserSession;
 import com.biblioteca.ui.controller.BookAdminController;
 import com.biblioteca.ui.controller.CatalogController;
 import com.biblioteca.ui.controller.LoginController;
-import java.io.File;
+import com.biblioteca.ui.style.DesignTokens;
+import com.biblioteca.util.CoverResolver;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.collections.FXCollections;
+import javafx.util.Duration;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Separator;
-import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.BackgroundImage;
 import javafx.scene.layout.BackgroundPosition;
 import javafx.scene.layout.BackgroundRepeat;
@@ -50,7 +54,6 @@ import javafx.scene.layout.Border;
 import javafx.scene.layout.BorderStroke;
 import javafx.scene.layout.BorderStrokeStyle;
 import javafx.scene.layout.BorderWidths;
-import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -75,10 +78,11 @@ public class CatalogView {
     private final Button editButton;
     private final Button loginButton;
     private final Button logoutButton;
-    private final Label roleLabel;
+    private final Label roleBadge;
     private final TilePane catalogGrid;
     private final ScrollPane catalogScrollPane;
     private final Label statusLabel;
+    private final Label feedbackLabel;
     private final StackPane detailCoverPane;
     private final Label detailTitleLabel;
     private final Label detailAuthorLabel;
@@ -105,6 +109,8 @@ public class CatalogView {
     private final Map<String, CheckBox> careerCheckboxes = new HashMap<>();
     private final Set<String> selectedLetters = new HashSet<>();
     private Button todasButton;
+
+    private Timeline searchDebounce;
 
     private static final Map<String, String> CAREER_ABBREVIATIONS = Map.ofEntries(
         Map.entry("LICENCIATURA EN ADMINISTRACIÓN Y GESTIÓN DE NEGOCIOS EMPRENDEDORES", "ADMINISTRACIÓN"),
@@ -136,10 +142,11 @@ public class CatalogView {
         this.editButton = new Button("Editar seleccionado");
         this.loginButton = new Button("Iniciar sesión");
         this.logoutButton = new Button("Cerrar sesión");
-        this.roleLabel = new Label("Rol activo: " + session.getCurrentUser().getRole());
+        this.roleBadge = new Label(translateRole(session.getCurrentUser().getRole()));
         this.catalogGrid = new TilePane();
         this.catalogScrollPane = new ScrollPane(catalogGrid);
         this.statusLabel = new Label();
+        this.feedbackLabel = new Label();
         this.detailCoverPane = new StackPane();
         this.detailTitleLabel = new Label("Selecciona un libro");
         this.detailAuthorLabel = new Label();
@@ -163,6 +170,15 @@ public class CatalogView {
         this.sortZA = new RadioButton("Z a A");
         this.careerList = new VBox();
         configureStage();
+        titleSearchField.setAccessibleText("Buscar por título, autor, categoría o carrera");
+        searchButton.setAccessibleText("Ejecutar búsqueda");
+        clearButton.setAccessibleText("Limpiar filtros y búsqueda");
+        registerButton.setAccessibleText("Registrar nuevo libro");
+        editButton.setAccessibleText("Editar libro seleccionado");
+        loginButton.setAccessibleText("Iniciar sesión como administrador");
+        logoutButton.setAccessibleText("Cerrar sesión");
+        copySelector.setAccessibleText("Seleccionar ejemplar");
+        statusSelector.setAccessibleText("Seleccionar nuevo estado del ejemplar");
     }
 
     public void show() {
@@ -173,131 +189,221 @@ public class CatalogView {
 
     private void configureStage() {
         stage.setTitle("Catalogo de Biblioteca");
-        stage.setMinWidth(1280);
+        stage.setMinWidth(1400);
         stage.setMinHeight(780);
-        stage.setScene(new Scene(buildRoot(), 1340, 820));
+        Scene scene = new Scene(buildRoot(), 1420, 820);
+        scene.getStylesheets().add(getClass().getResource("/scrollbar-style.css").toExternalForm());
+        stage.setScene(scene);
     }
 
     private VBox buildRoot() {
-        VBox root = new VBox(14, buildTopBar(), buildContent());
-        root.setPadding(new Insets(16));
+        VBox root = new VBox(8, buildTopBar(), buildContent());
+        root.setPadding(new Insets(10, 10, 10, 10));
+        root.setStyle(DesignTokens.bg(DesignTokens.BG_SURFACE));
         return root;
     }
 
     private Node buildTopBar() {
         Label titleLabel = new Label("Indice Digital de Biblioteca");
-        titleLabel.setFont(Font.font(22));
+        titleLabel.setFont(Font.font("Segoe UI", 24));
+        titleLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY) + " -fx-font-weight: bold;");
 
-        roleLabel.setStyle("-fx-text-fill: #d4d4d8;");
+        roleBadge.setStyle(
+            DesignTokens.bg(DesignTokens.BLUE_BG_SUBTLE) + DesignTokens.textFill(DesignTokens.BLUE_LIGHT)
+            + " -fx-font-size: 11px; -fx-font-weight: bold; -fx-background-radius: 999; -fx-padding: 2 10;"
+        );
 
         titleSearchField.setPromptText("Buscar por titulo, autor, categoria o carrera");
         titleSearchField.setPrefColumnCount(30);
+        titleSearchField.setStyle(
+            "-fx-background-color: rgba(255,255,255,0.10); -fx-text-fill: white; "
+            + "-fx-prompt-text-fill: #94a3b8; -fx-background-radius: 6; -fx-border-radius: 6; "
+            + "-fx-border-color: rgba(255,255,255,0.15); -fx-padding: 6 12;"
+        );
+        titleSearchField.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                titleSearchField.setStyle(
+                    "-fx-background-color: rgba(255,255,255,0.12); -fx-text-fill: white; "
+                    + "-fx-prompt-text-fill: #94a3b8; -fx-background-radius: 6; -fx-border-radius: 6; "
+                    + "-fx-border-color: " + DesignTokens.toRgba(DesignTokens.BLUE_GLOW) + "; -fx-padding: 6 12;"
+                );
+            } else {
+                titleSearchField.setStyle(
+                    "-fx-background-color: rgba(255,255,255,0.10); -fx-text-fill: white; "
+                    + "-fx-prompt-text-fill: #94a3b8; -fx-background-radius: 6; -fx-border-radius: 6; "
+                    + "-fx-border-color: rgba(255,255,255,0.15); -fx-padding: 6 12;"
+                );
+            }
+        });
 
-        searchButton.setOnAction(event -> loadCatalog());
-        clearButton.setOnAction(event -> {
+        Button searchBtn = new Button("Buscar");
+        searchBtn.setStyle(netflixButtonStyle(DesignTokens.BLUE_PRIMARY));
+        searchBtn.setOnAction(event -> loadCatalog());
+
+        Button clearBtn = new Button("Limpiar");
+        clearBtn.setStyle(netflixButtonStyle(DesignTokens.BG_ELEVATED));
+        clearBtn.setOnAction(event -> {
             titleSearchField.clear();
             resetFilters();
             loadCatalog();
         });
 
         titleSearchField.setOnAction(event -> loadCatalog());
+        titleSearchField.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (searchDebounce != null) searchDebounce.stop();
+            searchDebounce = new Timeline(new KeyFrame(Duration.millis(300), e -> loadCatalog()));
+            searchDebounce.setCycleCount(1);
+            searchDebounce.play();
+        });
 
-        HBox searchRow = new HBox(10,
-                new Label("Buscar"), titleSearchField,
-                searchButton, clearButton);
-        searchRow.setAlignment(Pos.CENTER_LEFT);
+        HBox searchRow = new HBox(8, titleSearchField, searchBtn, clearBtn);
+        searchRow.setAlignment(Pos.CENTER);
 
         loginButton.setVisible(!isAdmin());
         loginButton.setManaged(!isAdmin());
         loginButton.setOnAction(event -> openLoginDialog());
+        loginButton.setStyle(netflixButtonStyle(DesignTokens.BG_ELEVATED));
 
         logoutButton.setVisible(isAdmin());
         logoutButton.setManaged(isAdmin());
         logoutButton.setOnAction(event -> logout());
+        logoutButton.setStyle(netflixButtonStyle(DesignTokens.ACCENT_ERROR));
 
         registerButton.setVisible(isAdmin());
         registerButton.setManaged(isAdmin());
         registerButton.setOnAction(event -> openRegisterDialog());
+        registerButton.setStyle(netflixButtonStyle(DesignTokens.BLUE_PRIMARY));
 
         editButton.setVisible(isAdmin());
         editButton.setManaged(isAdmin());
         editButton.setOnAction(event -> openEditDialog());
+        editButton.setStyle(netflixButtonStyle(DesignTokens.BG_ELEVATED));
 
-        HBox actions = new HBox(10, loginButton, logoutButton, registerButton, editButton);
+        loginButton.setStyle(netflixButtonStyle(DesignTokens.BG_ELEVATED));
+        logoutButton.setStyle(netflixButtonStyle(DesignTokens.ACCENT_ERROR));
+
+        Region leftSpacer = new Region();
+        HBox.setHgrow(leftSpacer, javafx.scene.layout.Priority.ALWAYS);
+        Region midSpacer = new Region();
+        HBox.setHgrow(midSpacer, javafx.scene.layout.Priority.ALWAYS);
+        HBox topRow = new HBox(leftSpacer, titleLabel, roleBadge, midSpacer, loginButton, logoutButton);
+        topRow.setAlignment(Pos.CENTER);
+
+        HBox actions = new HBox(8, registerButton, editButton);
         actions.setAlignment(Pos.CENTER_RIGHT);
 
-        VBox wrapper = new VBox(10, titleLabel, roleLabel, searchRow, actions, statusLabel);
-        wrapper.setPadding(new Insets(8, 4, 0, 4));
+        feedbackLabel.setStyle(DesignTokens.textFill(DesignTokens.ACCENT_SUCCESS) + " -fx-font-size: 12px; -fx-font-weight: bold;");
+        feedbackLabel.setVisible(false);
+
+        VBox wrapper = new VBox(4, topRow, searchRow, actions, feedbackLabel);
+        wrapper.setPadding(new Insets(8, 16, 4, 16));
+        wrapper.setStyle(DesignTokens.bg(DesignTokens.BG_SURFACE)
+            + " -fx-border-width: 0 0 1 0; -fx-border-color: rgba(255,255,255,0.08);");
         return wrapper;
     }
 
+    private String netflixButtonStyle(Color bg) {
+        return "-fx-background-color: " + DesignTokens.toRgba(bg) + "; -fx-text-fill: white; "
+                + "-fx-font-size: 12px; -fx-font-weight: bold; -fx-background-radius: 6; "
+                + "-fx-cursor: hand; -fx-padding: 6 14;";
+    }
+
     private Node buildContent() {
-        catalogGrid.setHgap(16);
-        catalogGrid.setVgap(18);
-        catalogGrid.setPadding(new Insets(12));
-        catalogGrid.setPrefTileWidth(170);
-        catalogGrid.setPrefTileHeight(280);
-        catalogGrid.setTileAlignment(Pos.TOP_CENTER);
+        catalogGrid.setHgap(DesignTokens.CARD_HGAP);
+        catalogGrid.setVgap(DesignTokens.CARD_VGAP);
+        catalogGrid.setPadding(DesignTokens.PADDING_CONTENT);
+        catalogGrid.setPrefTileWidth(DesignTokens.CARD_WIDTH);
+        catalogGrid.setPrefTileHeight(DesignTokens.CARD_HEIGHT);
+        catalogGrid.setTileAlignment(Pos.TOP_LEFT);
         catalogGrid.setPrefColumns(5);
 
         catalogScrollPane.setFitToWidth(true);
         catalogScrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
         catalogScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        catalogScrollPane.widthProperty().addListener((obs, oldVal, newVal) -> {
+            double totalTileWidth = DesignTokens.CARD_WIDTH + DesignTokens.CARD_HGAP;
+            int columns = Math.max(2, (int) ((newVal.doubleValue() - DesignTokens.CARD_HGAP) / totalTileWidth));
+            catalogGrid.setPrefColumns(columns);
+        });
 
         VBox filterPane = buildFilterPane();
 
-        VBox leftPane = new VBox(10, new Label("Catalogo"), catalogScrollPane);
+        Label catalogHeading = new Label("Catalogo");
+        catalogHeading.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-size: 16px; -fx-font-weight: bold;");
+        catalogHeading.setAlignment(Pos.CENTER);
+        catalogHeading.setMaxWidth(Double.MAX_VALUE);
+        statusLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_MUTED) + " -fx-font-size: 12px;");
+        StackPane catalogHeader = new StackPane(catalogHeading, statusLabel);
+        StackPane.setAlignment(statusLabel, Pos.CENTER_RIGHT);
+        VBox leftPane = new VBox(10, catalogHeader, catalogScrollPane);
         VBox.setVgrow(catalogScrollPane, javafx.scene.layout.Priority.ALWAYS);
-        leftPane.setPrefWidth(680);
+        leftPane.setStyle(DesignTokens.bg(DesignTokens.BG_SURFACE) + " -fx-padding: 0 4;"
+                + " -fx-border-color: rgba(255,255,255,0.08); -fx-border-width: 0 1 0 1;");
 
         ScrollPane rightPane = buildDetailPane();
-        rightPane.setPrefWidth(380);
-        rightPane.setMinWidth(380);
-        rightPane.setMaxWidth(380);
+        rightPane.setPrefWidth(DesignTokens.DETAIL_PANEL_WIDTH);
+        rightPane.setMinWidth(DesignTokens.DETAIL_PANEL_WIDTH);
+        rightPane.setMaxWidth(DesignTokens.DETAIL_PANEL_WIDTH);
 
-        SplitPane splitPane = new SplitPane(filterPane, leftPane, rightPane);
-        splitPane.setDividerPositions(0.20, 0.60);
-        return splitPane;
+        HBox content = new HBox(filterPane, leftPane, rightPane);
+        HBox.setHgrow(leftPane, javafx.scene.layout.Priority.ALWAYS);
+        return content;
     }
 
     private VBox buildFilterPane() {
         Label title = new Label("Filtros");
-        title.setStyle("-fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold;");
+        title.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-size: 16px; -fx-font-weight: bold;");
+        title.setAlignment(Pos.CENTER);
+        title.setMaxWidth(Double.MAX_VALUE);
 
         VBox sortSection = buildSortSection();
         VBox alphabetSection = buildAlphabetSection();
         VBox careerSection = buildCareerSection();
 
         filterPanel.getChildren().setAll(title, sortSection, alphabetSection, careerSection);
-        filterPanel.setSpacing(14);
-        filterPanel.setPadding(new Insets(16));
-        filterPanel.setPrefWidth(220);
-        filterPanel.setMinWidth(220);
-        filterPanel.setMaxWidth(220);
-        filterPanel.setStyle("-fx-background-color: linear-gradient(to bottom, #0b2f57, #071827); -fx-background-radius: 8; -fx-border-radius: 8; -fx-border-color: #1d4ed8;");
+        filterPanel.setSpacing(DesignTokens.SPACING_MEDIUM);
+        filterPanel.setPadding(DesignTokens.PADDING_PANEL);
+        filterPanel.setPrefWidth(DesignTokens.FILTER_PANEL_WIDTH);
+        filterPanel.setMinWidth(DesignTokens.FILTER_PANEL_WIDTH);
+        filterPanel.setMaxWidth(DesignTokens.FILTER_PANEL_WIDTH);
+        filterPanel.setStyle(DesignTokens.bg(DesignTokens.BG_SURFACE)
+                + " -fx-border-color: rgba(255,255,255,0.08); -fx-border-width: 0 1 0 0;");
         return filterPanel;
     }
 
     private VBox buildSortSection() {
         Label heading = new Label("Ordenar por");
-        heading.setStyle("-fx-text-fill: #bfdbfe; -fx-font-size: 13px; -fx-font-weight: bold;");
+        heading.setStyle(DesignTokens.textFill(DesignTokens.BLUE_LIGHT)
+                + " -fx-font-size: 12px; -fx-font-weight: bold;");
 
         sortAZ.setToggleGroup(sortGroup);
         sortZA.setToggleGroup(sortGroup);
         sortAZ.setSelected(true);
-        sortAZ.setStyle("-fx-text-fill: white;");
-        sortZA.setStyle("-fx-text-fill: white;");
-        sortAZ.setOnAction(event -> loadCatalog());
-        sortZA.setOnAction(event -> loadCatalog());
+        String sortBaseStyle = "-fx-text-fill: white; -fx-font-size: 12px; "
+                + "-fx-background-radius: 999; -fx-padding: 4 10; -fx-cursor: hand;";
+        sortAZ.setStyle(sortBaseStyle + " -fx-background-color: " + DesignTokens.toRgba(DesignTokens.BLUE_PRIMARY) + ";");
+        sortZA.setStyle(sortBaseStyle + " -fx-background-color: " + DesignTokens.toRgba(DesignTokens.BG_ELEVATED) + ";");
 
-        VBox section = new VBox(6, heading, sortAZ, sortZA);
-        section.setStyle("-fx-background-color: rgba(255,255,255,0.08); -fx-background-radius: 8; -fx-padding: 12;");
+        sortGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+            sortAZ.setStyle(sortBaseStyle + " -fx-background-color: "
+                    + (newVal == sortAZ ? DesignTokens.toRgba(DesignTokens.BLUE_PRIMARY) : DesignTokens.toRgba(DesignTokens.BG_ELEVATED)) + ";");
+            sortZA.setStyle(sortBaseStyle + " -fx-background-color: "
+                    + (newVal == sortZA ? DesignTokens.toRgba(DesignTokens.BLUE_PRIMARY) : DesignTokens.toRgba(DesignTokens.BG_ELEVATED)) + ";");
+            loadCatalog();
+        });
+
+        HBox toggleRow = new HBox(6, sortAZ, sortZA);
+        VBox section = new VBox(DesignTokens.SPACING_SMALL, heading, toggleRow);
+        section.setStyle(DesignTokens.bg(DesignTokens.BG_CARD) + " -fx-padding: 12 12 12 6;");
         return section;
     }
 
     private VBox buildAlphabetSection() {
         Label heading = new Label("Primera letra");
-        heading.setStyle("-fx-text-fill: #bfdbfe; -fx-font-size: 13px; -fx-font-weight: bold;");
+        heading.setStyle(DesignTokens.textFill(DesignTokens.BLUE_LIGHT)
+                + " -fx-font-size: 12px; -fx-font-weight: bold;");
 
         todasButton = new Button("TODAS");
         todasButton.setStyle(alphabetButtonStyle(true));
@@ -312,13 +418,13 @@ public class CatalogView {
 
         alphabetPane.setHgap(4);
         alphabetPane.setVgap(4);
-        alphabetPane.setPrefWrapLength(200);
+        alphabetPane.setPrefWrapLength(180);
         alphabetPane.getChildren().add(todasButton);
 
         for (char c = 'A'; c <= 'Z'; c++) {
             String letter = String.valueOf(c);
             Button btn = new Button(letter);
-            btn.setPrefSize(34, 28);
+            btn.setPrefSize(32, 28);
             btn.setStyle(alphabetButtonStyle(false));
             btn.setOnAction(event -> {
                 if (selectedLetters.contains(letter)) {
@@ -335,8 +441,8 @@ public class CatalogView {
             alphabetButtons.add(btn);
         }
 
-        VBox section = new VBox(6, heading, alphabetPane);
-        section.setStyle("-fx-background-color: rgba(255,255,255,0.08); -fx-background-radius: 8; -fx-padding: 12;");
+        VBox section = new VBox(DesignTokens.SPACING_SMALL, heading, alphabetPane);
+        section.setStyle(DesignTokens.bg(DesignTokens.BG_CARD) + " -fx-padding: 12 12 12 6;");
         return section;
     }
 
@@ -344,23 +450,28 @@ public class CatalogView {
 
     private String alphabetButtonStyle(boolean selected) {
         if (selected) {
-            return "-fx-background-color: #1d4ed8; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-border-color: #60a5fa; -fx-border-radius: 6; -fx-cursor: hand;";
+            return "-fx-background-color: " + DesignTokens.toRgba(DesignTokens.BLUE_PRIMARY)
+                    + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; "
+                    + "-fx-border-color: " + DesignTokens.toRgba(DesignTokens.BLUE_GLOW)
+                    + "; -fx-border-radius: 6; -fx-cursor: hand;";
         }
-        return "-fx-background-color: rgba(255,255,255,0.12); -fx-text-fill: white; -fx-background-radius: 6; -fx-border-color: rgba(255,255,255,0.2); -fx-border-radius: 6; -fx-cursor: hand;";
+        return "-fx-background-color: rgba(255,255,255,0.10); -fx-text-fill: white; -fx-background-radius: 6; "
+                + "-fx-border-color: rgba(255,255,255,0.15); -fx-border-radius: 6; -fx-cursor: hand;";
     }
 
     private VBox buildCareerSection() {
         Label heading = new Label("Carrera");
-        heading.setStyle("-fx-text-fill: #bfdbfe; -fx-font-size: 13px; -fx-font-weight: bold;");
+        heading.setStyle(DesignTokens.textFill(DesignTokens.BLUE_LIGHT)
+                + " -fx-font-size: 12px; -fx-font-weight: bold;");
 
-        careerList.setSpacing(6);
+        careerList.setSpacing(DesignTokens.SPACING_SMALL);
         ScrollPane scroll = new ScrollPane(careerList);
         scroll.setFitToWidth(true);
-        scroll.setPrefHeight(200);
+        scroll.setPrefHeight(180);
         scroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
 
-        VBox section = new VBox(6, heading, scroll);
-        section.setStyle("-fx-background-color: rgba(255,255,255,0.08); -fx-background-radius: 8; -fx-padding: 12;");
+        VBox section = new VBox(DesignTokens.SPACING_SMALL, heading, scroll);
+        section.setStyle(DesignTokens.bg(DesignTokens.BG_CARD) + " -fx-padding: 12 12 12 8;");
         return section;
     }
 
@@ -391,44 +502,57 @@ public class CatalogView {
     }
 
     private ScrollPane buildDetailPane() {
-        detailCoverPane.setPrefSize(240, 320);
-        detailCoverPane.setMinSize(240, 320);
-        detailCoverPane.setMaxSize(240, 320);
-        detailCoverPane.setStyle("-fx-background-color: linear-gradient(to bottom right, #0f4c81, #06121f); -fx-background-radius: 8; -fx-border-radius: 8; -fx-border-color: rgba(255,255,255,0.18);");
+        detailCoverPane.setPrefSize(260, 360);
+        detailCoverPane.setMinSize(260, 360);
+        detailCoverPane.setMaxSize(260, 360);
+        detailCoverPane.setStyle("-fx-border-color: rgba(255,255,255,0.12);"
+                + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 12, 0, 0, 4);");
+        detailCoverPane.setBackground(new Background(new BackgroundFill(
+                new javafx.scene.paint.LinearGradient(0, 0, 1, 1, true, javafx.scene.paint.CycleMethod.NO_CYCLE,
+                        new javafx.scene.paint.Stop(0, javafx.scene.paint.Color.web("#0f4c81")),
+                        new javafx.scene.paint.Stop(1, javafx.scene.paint.Color.web("#06121f"))),
+                CornerRadii.EMPTY, Insets.EMPTY)));
 
         Label coverFallback = new Label("Sin portada");
-        coverFallback.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
+        coverFallback.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-size: 16px; -fx-font-weight: bold;");
         detailCoverPane.getChildren().add(coverFallback);
 
-        detailTitleLabel.setFont(Font.font("Georgia", 26));
+        detailTitleLabel.setFont(Font.font("Segoe UI", 24));
         detailTitleLabel.setWrapText(true);
-        detailTitleLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold;");
-        detailAuthorLabel.setStyle("-fx-text-fill: #dbeafe;");
-        detailIsbnLabel.setStyle("-fx-text-fill: white;");
-        detailPublisherLabel.setStyle("-fx-text-fill: white;");
-        detailYearLabel.setStyle("-fx-text-fill: white;");
-        detailCategoryLabel.setStyle("-fx-text-fill: white;");
-        detailCareerLabel.setStyle("-fx-text-fill: white;");
+        detailTitleLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-weight: bold; -fx-font-size: 24px;");
+        detailAuthorLabel.setStyle(DesignTokens.textFill(DesignTokens.BLUE_LIGHT));
+        detailIsbnLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_SECONDARY));
+        detailPublisherLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_SECONDARY));
+        detailYearLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_SECONDARY));
+        detailCategoryLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_SECONDARY));
+        detailCareerLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_SECONDARY));
         detailDescriptionLabel.setWrapText(true);
-        detailDescriptionLabel.setStyle("-fx-text-fill: #eff6ff; -fx-font-size: 14px; -fx-line-spacing: 4px;");
-        detailAvailabilityLabel.setStyle("-fx-text-fill: #bfdbfe; -fx-font-weight: bold;");
+        detailDescriptionLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_SECONDARY)
+                + " -fx-font-size: 13px; -fx-line-spacing: 3px;");
+        detailAvailabilityLabel.setStyle(DesignTokens.textFill(DesignTokens.ACCENT_SUCCESS)
+                + " -fx-font-weight: bold; -fx-font-size: 14px;");
         detailLocationLabel.setWrapText(true);
-        detailLocationLabel.setStyle("-fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold;");
-        detailCopyStatusLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold;");
+        detailLocationLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-size: 18px; -fx-font-weight: bold;");
+        detailCopyStatusLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-weight: bold;");
         detailNotesLabel.setWrapText(true);
-        detailNotesLabel.setStyle("-fx-text-fill: #dbeafe;");
+        detailNotesLabel.setStyle(DesignTokens.textFill(DesignTokens.TEXT_SECONDARY));
 
         GridPane infoGrid = new GridPane();
-        infoGrid.setHgap(14);
-        infoGrid.setVgap(9);
-        infoGrid.setStyle("-fx-background-color: rgba(255,255,255,0.08); -fx-background-radius: 8; -fx-padding: 14;");
+        infoGrid.setHgap(12);
+        infoGrid.setVgap(8);
+        infoGrid.setStyle(DesignTokens.bg(DesignTokens.BLUE_BG_SUBTLE)
+                + " -fx-background-radius: 8; -fx-padding: 12;");
         infoGrid.add(detailFieldLabel("Autor"), 0, 0);
         infoGrid.add(detailAuthorLabel, 1, 0);
         infoGrid.add(detailFieldLabel("ISBN"), 0, 1);
         infoGrid.add(detailIsbnLabel, 1, 1);
         infoGrid.add(detailFieldLabel("Editorial"), 0, 2);
         infoGrid.add(detailPublisherLabel, 1, 2);
-        infoGrid.add(detailFieldLabel("Anio"), 0, 3);
+        infoGrid.add(detailFieldLabel("Año"), 0, 3);
         infoGrid.add(detailYearLabel, 1, 3);
         infoGrid.add(detailFieldLabel("Categoria"), 0, 4);
         infoGrid.add(detailCategoryLabel, 1, 4);
@@ -439,16 +563,11 @@ public class CatalogView {
         copySelector.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(BookCopy copy) {
-                if (copy == null) {
-                    return "";
-                }
+                if (copy == null) return "";
                 return copy.getInventoryCode() + " - " + translateStatus(copy.getStatus());
             }
-
             @Override
-            public BookCopy fromString(String string) {
-                return null;
-            }
+            public BookCopy fromString(String string) { return null; }
         });
         copySelector.setCellFactory(listView -> new javafx.scene.control.ListCell<>() {
             @Override
@@ -465,22 +584,17 @@ public class CatalogView {
             }
         });
         copySelector.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue != null) {
-                updateSelectedCopyDetail(newValue);
-            }
+            if (newValue != null) updateSelectedCopyDetail(newValue);
         });
+        copySelector.setStyle("-fx-background-color: rgba(255,255,255,0.10); -fx-text-fill: white;"
+                + " -fx-background-radius: 6; -fx-border-radius: 6; -fx-border-color: rgba(255,255,255,0.15);");
 
         statusSelector.getItems().setAll(CopyStatus.values());
         statusSelector.setConverter(new javafx.util.StringConverter<>() {
             @Override
-            public String toString(CopyStatus status) {
-                return status == null ? "" : translateStatus(status);
-            }
-
+            public String toString(CopyStatus status) { return status == null ? "" : translateStatus(status); }
             @Override
-            public CopyStatus fromString(String string) {
-                return null;
-            }
+            public CopyStatus fromString(String string) { return null; }
         });
         statusSelector.setCellFactory(listView -> new javafx.scene.control.ListCell<>() {
             @Override
@@ -496,36 +610,39 @@ public class CatalogView {
                 setText(empty || status == null ? null : translateStatus(status));
             }
         });
+        statusSelector.setStyle("-fx-background-color: rgba(255,255,255,0.10); -fx-text-fill: white;"
+                + " -fx-background-radius: 6; -fx-border-radius: 6; -fx-border-color: rgba(255,255,255,0.15);");
 
         Button updateStatusButton = new Button("Cambiar estado");
+        updateStatusButton.setStyle(netflixButtonStyle(DesignTokens.BLUE_PRIMARY));
         updateStatusButton.setOnAction(event -> updateSelectedCopyStatus());
 
         Label adminTitle = new Label("Acciones de administrador");
-        adminTitle.setStyle("-fx-text-fill: white; -fx-font-weight: bold;");
+        adminTitle.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-weight: bold; -fx-font-size: 14px;");
         Label statusEditLabel = new Label("Nuevo estado");
-        statusEditLabel.setStyle("-fx-text-fill: #bfdbfe;");
+        statusEditLabel.setStyle(DesignTokens.textFill(DesignTokens.BLUE_LIGHT) + " -fx-font-size: 12px;");
 
         adminPanel.getChildren().setAll(
-                new Separator(),
-                adminTitle,
-                statusEditLabel,
-                statusSelector,
-                updateStatusButton);
-        adminPanel.setSpacing(10);
-        adminPanel.setStyle("-fx-background-color: rgba(255,255,255,0.08); -fx-background-radius: 8; -fx-padding: 12;");
+                adminTitle, statusEditLabel, statusSelector, updateStatusButton);
+        adminPanel.setSpacing(DesignTokens.SPACING_BASE);
+        adminPanel.setStyle(DesignTokens.bg(DesignTokens.BLUE_BG_SUBTLE)
+                + " -fx-background-radius: 8; -fx-padding: 12;");
         adminPanel.setVisible(isAdmin());
         adminPanel.setManaged(isAdmin());
 
-        VBox coverBlock = new VBox(10, detailCoverPane, detailAvailabilityLabel);
+        VBox coverBlock = new VBox(DesignTokens.SPACING_BASE, detailCoverPane, detailAvailabilityLabel);
         coverBlock.setAlignment(Pos.TOP_CENTER);
 
         VBox descriptionBlock = new VBox(8, sectionHeading("Descripcion"), detailDescriptionLabel);
-        descriptionBlock.setStyle("-fx-background-color: rgba(2,132,199,0.28); -fx-background-radius: 8; -fx-padding: 14;");
+        descriptionBlock.setStyle(DesignTokens.bg(DesignTokens.BLUE_BG_SUBTLE)
+                + " -fx-background-radius: 8; -fx-padding: 14;");
 
         GridPane copyGrid = new GridPane();
-        copyGrid.setHgap(14);
-        copyGrid.setVgap(9);
-        copyGrid.setStyle("-fx-background-color: rgba(255,255,255,0.08); -fx-background-radius: 8; -fx-padding: 14;");
+        copyGrid.setHgap(12);
+        copyGrid.setVgap(8);
+        copyGrid.setStyle(DesignTokens.bg(DesignTokens.BLUE_BG_SUBTLE)
+                + " -fx-background-radius: 8; -fx-padding: 12;");
         copyGrid.add(detailFieldLabel("Ejemplar"), 0, 0);
         copyGrid.add(copySelector, 1, 0);
         copyGrid.add(detailFieldLabel("Estado"), 0, 1);
@@ -534,21 +651,25 @@ public class CatalogView {
         copyGrid.add(detailNotesLabel, 1, 2);
 
         Label locationHeading = new Label("Codigo de ubicacion");
-        locationHeading.setStyle("-fx-text-fill: #075985; -fx-font-size: 12px; -fx-font-weight: bold;");
-        VBox locationBlock = new VBox(6, locationHeading, detailLocationLabel);
-        locationBlock.setStyle("-fx-background-color: linear-gradient(to right, #ffffff, #dbeafe); -fx-background-radius: 8; -fx-padding: 14; -fx-border-color: #7dd3fc; -fx-border-radius: 8;");
-        detailLocationLabel.setStyle("-fx-text-fill: #082f49; -fx-font-size: 22px; -fx-font-weight: bold;");
+        locationHeading.setStyle(DesignTokens.textFill(DesignTokens.TEXT_MUTED) + " -fx-font-size: 11px; -fx-font-weight: bold;");
+        VBox locationBlock = new VBox(4, locationHeading, detailLocationLabel);
+        locationBlock.setStyle(DesignTokens.bg(DesignTokens.BG_CARD)
+                + " -fx-background-radius: 8; -fx-padding: 14; -fx-border-color: "
+                + DesignTokens.toRgba(DesignTokens.BLUE_GLOW) + "; -fx-border-radius: 8; -fx-border-width: 1;");
+        detailLocationLabel.setStyle(DesignTokens.textFill(DesignTokens.BLUE_LIGHT)
+                + " -fx-font-size: 20px; -fx-font-weight: bold;");
 
-        VBox detailBox = new VBox(14,
-                coverBlock,
-                detailTitleLabel,
-                infoGrid,
-                descriptionBlock,
-                copyGrid,
-                locationBlock,
-                adminPanel);
-        detailBox.setPadding(new Insets(18));
-        detailBox.setStyle("-fx-background-color: #071827; -fx-background-radius: 8; -fx-border-radius: 8; -fx-border-color: #bfdbfe;");
+        Label detailHeading = new Label("Detalles del libro");
+        detailHeading.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-size: 16px; -fx-font-weight: bold;");
+        detailHeading.setAlignment(Pos.CENTER);
+        detailHeading.setMaxWidth(Double.MAX_VALUE);
+        VBox detailBox = new VBox(DesignTokens.SPACING_MEDIUM,
+                detailHeading, coverBlock, detailTitleLabel, infoGrid, descriptionBlock,
+                copyGrid, locationBlock, adminPanel);
+        detailBox.setPadding(DesignTokens.PADDING_PANEL);
+        detailBox.setStyle(DesignTokens.bg(DesignTokens.BG_SURFACE)
+                + " -fx-border-color: rgba(255,255,255,0.08); -fx-border-width: 0 0 0 1;");
 
         ScrollPane detailScroll = new ScrollPane(detailBox);
         detailScroll.setFitToWidth(true);
@@ -558,80 +679,122 @@ public class CatalogView {
     }
 
     private void loadCatalog() {
-        BookSearchCriteria criteria = new BookSearchCriteria();
-        criteria.setText(titleSearchField.getText());
+        statusLabel.setText("Cargando...");
+        try {
+            BookSearchCriteria criteria = new BookSearchCriteria();
+            criteria.setText(titleSearchField.getText());
 
-        if (!selectedLetters.isEmpty()) {
-            criteria.setFirstLetters(new HashSet<>(selectedLetters));
-        }
-
-        Set<String> selectedCareers = new HashSet<>();
-        for (Map.Entry<String, CheckBox> entry : careerCheckboxes.entrySet()) {
-            if (entry.getValue().isSelected()) {
-                selectedCareers.add(entry.getKey());
+            if (!selectedLetters.isEmpty()) {
+                criteria.setFirstLetters(new HashSet<>(selectedLetters));
             }
-        }
-        if (!selectedCareers.isEmpty()) {
-            criteria.setCareers(selectedCareers);
-        }
 
-        PageRequest request = new PageRequest();
-        request.setPage(0);
-        request.setSize(100);
-        request.setSortField(BookSortField.TITLE);
-        request.setDirection(sortZA.isSelected() ? SortDirection.DESC : SortDirection.ASC);
+            Set<String> selectedCareers = new HashSet<>();
+            for (Map.Entry<String, CheckBox> entry : careerCheckboxes.entrySet()) {
+                if (entry.getValue().isSelected()) {
+                    selectedCareers.add(entry.getKey());
+                }
+            }
+            if (!selectedCareers.isEmpty()) {
+                criteria.setCareers(selectedCareers);
+            }
 
-        PageResult<BookCatalogItemView> result = catalogController.loadCatalog(criteria, request, isAdmin());
-        statusLabel.setText(result.getTotalItems() + " libros encontrados");
+            PageRequest request = new PageRequest();
+            request.setPage(0);
+            request.setSize(100);
+            request.setSortField(BookSortField.TITLE);
+            request.setDirection(sortZA.isSelected() ? SortDirection.DESC : SortDirection.ASC);
 
-        List<BookCatalogItemView> items = result.getItems();
-        cardsByBookId.clear();
-        catalogGrid.getChildren().clear();
+            PageResult<BookCatalogItemView> result = catalogController.loadCatalog(criteria, request, isAdmin());
+            statusLabel.setText(result.getTotalItems() + " libros encontrados");
 
-        if (items.isEmpty()) {
+            List<BookCatalogItemView> items = result.getItems();
+            cardsByBookId.clear();
+            catalogGrid.getChildren().clear();
+
+            if (items.isEmpty()) {
+                catalogGrid.getChildren().add(createEmptyStateLabel());
+                selectedBookTitleId = null;
+                clearDetail();
+                return;
+            }
+
+            catalogGrid.setPrefTileWidth(DesignTokens.CARD_WIDTH);
+            catalogGrid.getChildren().setAll(items.stream().map(this::createCatalogCard).toList());
+            Long previousSelection = selectedBookTitleId;
+            boolean found = previousSelection != null && cardsByBookId.containsKey(previousSelection);
+            if (found) {
+                for (Map.Entry<Long, StackPane> entry : cardsByBookId.entrySet()) {
+                    applySelectionStyle(entry.getValue(), entry.getKey().equals(previousSelection));
+                }
+            } else if (!items.isEmpty()) {
+                selectCard(items.get(0).getBookTitleId());
+            }
+        } catch (Exception e) {
+            statusLabel.setText("Error al cargar el catálogo");
+            cardsByBookId.clear();
+            catalogGrid.getChildren().setAll(createErrorStateLabel());
             selectedBookTitleId = null;
             clearDetail();
-            return;
         }
-
-        catalogGrid.getChildren().setAll(items.stream().map(this::createCatalogCard).toList());
-        selectCard(items.get(0).getBookTitleId());
     }
 
     private StackPane createCatalogCard(BookCatalogItemView item) {
         StackPane card = new StackPane();
-        card.setPrefSize(170, 280);
-        card.setMinSize(170, 280);
-        card.setMaxSize(170, 280);
-        card.setStyle("-fx-background-radius: 16; -fx-border-radius: 16; -fx-cursor: hand; -fx-background-color: #111827;");
+        card.setPrefSize(DesignTokens.CARD_WIDTH, DesignTokens.CARD_HEIGHT);
+        card.setMinSize(DesignTokens.CARD_WIDTH, DesignTokens.CARD_HEIGHT);
+        card.setMaxSize(DesignTokens.CARD_WIDTH, DesignTokens.CARD_HEIGHT);
+        card.setStyle("-fx-cursor: hand;" + DesignTokens.bg(DesignTokens.BG_CARD));
 
         Region cover = new Region();
-        cover.setPrefSize(170, 280);
-        cover.setMinSize(170, 280);
-        cover.setMaxSize(170, 280);
+        cover.setPrefSize(DesignTokens.CARD_WIDTH, DesignTokens.CARD_HEIGHT);
+        cover.setMinSize(DesignTokens.CARD_WIDTH, DesignTokens.CARD_HEIGHT);
+        cover.setMaxSize(DesignTokens.CARD_WIDTH, DesignTokens.CARD_HEIGHT);
         applyCoverBackground(cover, item.getCoverPath());
 
-        VBox overlay = new VBox(4);
-        overlay.setPadding(new Insets(10));
+        Region gradientOverlay = new Region();
+        gradientOverlay.setStyle("-fx-background-color: linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 40%, transparent 60%, transparent 100%);");
+        gradientOverlay.setMouseTransparent(true);
+
+        VBox overlay = new VBox(3);
+        overlay.setPadding(new Insets(8));
         overlay.setAlignment(Pos.BOTTOM_LEFT);
-        overlay.setPrefWidth(170);
-        overlay.setStyle("-fx-background-color: linear-gradient(to top, rgba(0,0,0,0.82), rgba(0,0,0,0.12)); -fx-background-radius: 0 0 16 16;");
+        overlay.setPrefWidth(DesignTokens.CARD_WIDTH);
 
         Label title = new Label(item.getTitle());
         title.setWrapText(true);
-        title.setStyle("-fx-text-fill: white; -fx-font-size: 13px; -fx-font-weight: bold;");
+        title.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-size: 12px; -fx-font-weight: bold;");
+        title.setEffect(new javafx.scene.effect.DropShadow(2, 0, 1, javafx.scene.paint.Color.rgb(0, 0, 0, 0.8)));
 
         Label author = new Label(item.getAuthor());
         author.setWrapText(true);
-        author.setStyle("-fx-text-fill: #e5e7eb; -fx-font-size: 11px;");
+        author.setStyle(DesignTokens.textFill(DesignTokens.TEXT_SECONDARY)
+                + " -fx-font-size: 10px;");
+        author.setEffect(new javafx.scene.effect.DropShadow(2, 0, 1, javafx.scene.paint.Color.rgb(0, 0, 0, 0.8)));
 
         Label availability = new Label(item.getAvailableCopies() + " disponibles");
-        availability.setStyle("-fx-text-fill: #fde68a; -fx-font-size: 11px; -fx-font-weight: bold;");
+        availability.setStyle(DesignTokens.textFill(DesignTokens.ACCENT_WARNING)
+                + " -fx-font-size: 10px; -fx-font-weight: bold;");
+        availability.setEffect(new javafx.scene.effect.DropShadow(2, 0, 1, javafx.scene.paint.Color.rgb(0, 0, 0, 0.8)));
 
         overlay.getChildren().addAll(title, author, availability);
-        card.getChildren().addAll(cover, overlay);
-        card.setOnMouseClicked(event -> selectCard(item.getBookTitleId()));
+        StackPane.setAlignment(overlay, Pos.BOTTOM_LEFT);
+        card.getChildren().addAll(cover, gradientOverlay, overlay);
         card.setUserData(item);
+
+        card.setOnMouseEntered(e -> {
+            card.setScaleX(1.08);
+            card.setScaleY(1.08);
+            card.setEffect(new javafx.scene.effect.DropShadow(16, DesignTokens.SHADOW_BLUE));
+        });
+        card.setOnMouseExited(e -> {
+            card.setScaleX(1.0);
+            card.setScaleY(1.0);
+            card.setEffect(null);
+            applySelectionStyle(card, item.getBookTitleId().equals(selectedBookTitleId));
+        });
+        card.setOnMouseClicked(event -> selectCard(item.getBookTitleId()));
+
         Tooltip.install(card, new Tooltip(item.getTitle() + " - " + item.getAuthor()));
         cardsByBookId.put(item.getBookTitleId(), card);
         applySelectionStyle(card, item.getBookTitleId().equals(selectedBookTitleId));
@@ -646,16 +809,25 @@ public class CatalogView {
 
     private void applySelectionStyle(StackPane card, boolean selected) {
         if (selected) {
-            card.setBorder(new Border(new BorderStroke(Color.web("#f59e0b"), BorderStrokeStyle.SOLID, new CornerRadii(16), new BorderWidths(3))));
+            card.setBorder(new Border(new BorderStroke(DesignTokens.BLUE_GLOW, BorderStrokeStyle.SOLID, DesignTokens.RADIUS_CARD, new BorderWidths(3))));
+            card.setEffect(new javafx.scene.effect.DropShadow(12, DesignTokens.SHADOW_BLUE));
         } else {
-            card.setBorder(new Border(new BorderStroke(Color.TRANSPARENT, BorderStrokeStyle.SOLID, new CornerRadii(16), new BorderWidths(1))));
+            card.setBorder(null);
+            card.setEffect(null);
         }
     }
 
     private void loadDetail(Long bookTitleId) {
-        currentDetail = catalogController.loadBookDetail(bookTitleId, isAdmin());
-        if (currentDetail == null) {
+        try {
+            currentDetail = catalogController.loadBookDetail(bookTitleId, isAdmin());
+            if (currentDetail == null) {
+                clearDetail();
+                return;
+            }
+        } catch (Exception e) {
             clearDetail();
+            detailTitleLabel.setText("Error al cargar detalle");
+            detailDescriptionLabel.setText("No se pudo cargar la información del libro.");
             return;
         }
 
@@ -706,42 +878,50 @@ public class CatalogView {
         detailCoverPane.getChildren().clear();
         if (coverPath == null || coverPath.isBlank()) {
             Label fallback = new Label("Sin portada");
-            fallback.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
+            fallback.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                    + " -fx-font-size: 16px; -fx-font-weight: bold;");
             detailCoverPane.getChildren().add(fallback);
             detailCoverPane.setBackground(defaultCoverBackground());
             return;
         }
 
-        File file = new File(coverPath);
-        if (!file.exists()) {
+        Path coverFile = CoverResolver.resolve(coverPath);
+        if (coverFile == null || !Files.exists(coverFile)) {
             Label fallback = new Label("Portada no disponible");
-            fallback.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+            fallback.setStyle(DesignTokens.textFill(DesignTokens.TEXT_MUTED)
+                    + " -fx-font-size: 14px; -fx-font-weight: bold;");
             detailCoverPane.getChildren().add(fallback);
             detailCoverPane.setBackground(defaultCoverBackground());
             return;
         }
 
-        javafx.scene.image.Image image = new javafx.scene.image.Image(file.toURI().toString(), 220, 300, true, true);
+        javafx.scene.image.Image image = new javafx.scene.image.Image(coverFile.toUri().toString(), 480, 680, true, true);
         BackgroundImage backgroundImage = new BackgroundImage(
                 image,
                 BackgroundRepeat.NO_REPEAT,
                 BackgroundRepeat.NO_REPEAT,
                 BackgroundPosition.CENTER,
                 new BackgroundSize(100, 100, true, true, false, true));
-        detailCoverPane.setBackground(new Background(backgroundImage));
+        BackgroundFill gradientFill = new BackgroundFill(
+                new javafx.scene.paint.LinearGradient(0, 0, 1, 1, true, javafx.scene.paint.CycleMethod.NO_CYCLE,
+                        new javafx.scene.paint.Stop(0, javafx.scene.paint.Color.web("#0f4c81")),
+                        new javafx.scene.paint.Stop(1, javafx.scene.paint.Color.web("#06121f"))),
+                CornerRadii.EMPTY, Insets.EMPTY);
+        detailCoverPane.setBackground(new Background(List.of(gradientFill), List.of(backgroundImage)));
     }
 
     private void applyCoverBackground(Region region, String coverPath) {
         if (coverPath == null || coverPath.isBlank()) {
-            region.setStyle("-fx-background-color: linear-gradient(to bottom right, #334155, #0f172a); -fx-background-radius: 16;");
+            region.setStyle("-fx-background-color: linear-gradient(to bottom right, #1e3a5f, #0a1929);");
             return;
         }
-        File file = new File(coverPath);
-        if (!file.exists()) {
-            region.setStyle("-fx-background-color: linear-gradient(to bottom right, #334155, #0f172a); -fx-background-radius: 16;");
+        Path coverFile = CoverResolver.resolve(coverPath);
+        if (coverFile == null || !Files.exists(coverFile)) {
+            region.setStyle("-fx-background-color: linear-gradient(to bottom right, #1e3a5f, #0a1929);");
             return;
         }
-        javafx.scene.image.Image image = new javafx.scene.image.Image(file.toURI().toString(), 170, 280, true, true);
+        javafx.scene.image.Image image = new javafx.scene.image.Image(coverFile.toUri().toString(),
+                DesignTokens.CARD_WIDTH * 2, DesignTokens.CARD_HEIGHT * 2, true, true);
         BackgroundImage backgroundImage = new BackgroundImage(
                 image,
                 BackgroundRepeat.NO_REPEAT,
@@ -752,21 +932,23 @@ public class CatalogView {
     }
 
     private Background defaultCoverBackground() {
-        return new Background(new BackgroundFill(Color.web("#111827"), new CornerRadii(14), Insets.EMPTY));
+        return new Background(new BackgroundFill(DesignTokens.BG_CARD, CornerRadii.EMPTY, Insets.EMPTY));
     }
 
     private void updateSelectedCopyStatus() {
         BookCopy selectedCopy = copySelector.getSelectionModel().getSelectedItem();
         CopyStatus selectedStatus = statusSelector.getSelectionModel().getSelectedItem();
         if (selectedCopy == null || selectedStatus == null) {
-            showInfo("Selecciona un ejemplar y un estado.");
+            showError("Selecciona un ejemplar y un estado.");
             return;
         }
 
         bookAdminController.changeCopyStatus(selectedCopy.getId(), selectedStatus);
-        loadDetail(selectedCopy.getBookTitleId());
         loadCatalog();
-        showInfo("Estado actualizado correctamente.");
+        if (selectedBookTitleId != null) {
+            loadDetail(selectedBookTitleId);
+        }
+        showFeedback("Estado actualizado correctamente.");
     }
 
     private void openRegisterDialog() {
@@ -776,19 +958,19 @@ public class CatalogView {
 
     private void openEditDialog() {
         if (currentDetail == null) {
-            showInfo("Selecciona primero un libro del catalogo.");
+            showError("Selecciona primero un libro del catalogo.");
             return;
         }
 
         BookCopy selectedCopy = copySelector.getSelectionModel().getSelectedItem();
         if (selectedCopy == null) {
-            showInfo("Selecciona un ejemplar fisico para editar.");
+            showError("Selecciona un ejemplar fisico para editar.");
             return;
         }
 
         Location location = findLocationById(selectedCopy.getLocationId());
         if (location == null) {
-            showInfo("No se encontro la ubicacion del ejemplar seleccionado.");
+            showError("No se encontro la ubicacion del ejemplar seleccionado.");
             return;
         }
 
@@ -818,7 +1000,7 @@ public class CatalogView {
 
     private void updateSession(UserSession newSession) {
         this.session = newSession;
-        roleLabel.setText("Rol activo: " + session.getCurrentUser().getRole());
+        roleBadge.setText(translateRole(session.getCurrentUser().getRole()));
         boolean admin = isAdmin();
         loginButton.setVisible(!admin);
         loginButton.setManaged(!admin);
@@ -869,17 +1051,41 @@ public class CatalogView {
                 .orElse(null);
     }
 
+    private Label createEmptyStateLabel() {
+        Label label = new Label("No se encontraron libros");
+        label.setStyle(DesignTokens.textFill(DesignTokens.TEXT_MUTED)
+                + " -fx-font-size: 16px; -fx-font-weight: bold;");
+        label.setAlignment(Pos.CENTER);
+        catalogGrid.setPrefTileWidth(400);
+        return label;
+    }
+
+    private Label createErrorStateLabel() {
+        Label label = new Label("Error al cargar el catálogo");
+        label.setStyle(DesignTokens.textFill(DesignTokens.ACCENT_ERROR)
+                + " -fx-font-size: 16px; -fx-font-weight: bold;");
+        label.setAlignment(Pos.CENTER);
+        catalogGrid.setPrefTileWidth(400);
+        return label;
+    }
+
     private Label detailFieldLabel(String text) {
         Label label = new Label(text);
-        label.setStyle("-fx-text-fill: #bfdbfe; -fx-font-size: 12px; -fx-font-weight: bold;");
-        label.setMinWidth(88);
+        label.setStyle(DesignTokens.textFill(DesignTokens.BLUE_LIGHT)
+                + " -fx-font-size: 11px; -fx-font-weight: bold;");
+        label.setMinWidth(80);
         return label;
     }
 
     private Label sectionHeading(String text) {
         Label label = new Label(text);
-        label.setStyle("-fx-text-fill: white; -fx-font-size: 15px; -fx-font-weight: bold;");
+        label.setStyle(DesignTokens.textFill(DesignTokens.TEXT_PRIMARY)
+                + " -fx-font-size: 14px; -fx-font-weight: bold;");
         return label;
+    }
+
+    private String translateRole(UserRole role) {
+        return role == UserRole.ADMIN ? "Admin" : "Invitado";
     }
 
     private String translateStatus(CopyStatus status) {
@@ -893,11 +1099,21 @@ public class CatalogView {
         };
     }
 
-    private void showInfo(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.initOwner(stage);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+    private void showFeedback(String message) {
+        feedbackLabel.setText(message);
+        feedbackLabel.setStyle(DesignTokens.textFill(DesignTokens.ACCENT_SUCCESS) + " -fx-font-size: 12px; -fx-font-weight: bold;");
+        feedbackLabel.setVisible(true);
+        Timeline timer = new Timeline(new KeyFrame(Duration.seconds(3), e -> feedbackLabel.setVisible(false)));
+        timer.setCycleCount(1);
+        timer.play();
+    }
+
+    private void showError(String message) {
+        feedbackLabel.setText(message);
+        feedbackLabel.setStyle(DesignTokens.textFill(DesignTokens.ACCENT_ERROR) + " -fx-font-size: 12px; -fx-font-weight: bold;");
+        feedbackLabel.setVisible(true);
+        Timeline timer = new Timeline(new KeyFrame(Duration.seconds(4), e -> feedbackLabel.setVisible(false)));
+        timer.setCycleCount(1);
+        timer.play();
     }
 }

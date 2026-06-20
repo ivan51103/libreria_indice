@@ -1,0 +1,23 @@
+# Checklist de Tareas: Optimización y Rediseño de Biblioteca
+
+- [x] Fase 0: Eliminación de `REPAIR`
+  - [x] Eliminar `REPAIR` en `CopyStatus.java`
+  - [x] Actualizar datos semilla en `AppConfig.java`
+  - [x] Actualizar pruebas unitarias e integración que usaban `REPAIR`
+  - [x] Ejecutar `mvn test` para validar que compila y pasa sin errores
+- [ ] Fase 1: Traducción y castellanización completa de la UI
+  - [x] Traducir títulos, botones y diálogos en `LoginView.java`
+  - [ ] Traducir completamente tabla, combos de selección de estados/copias y detalles en `CatalogView.java`
+  - [ ] Traducir completamente el formulario de campos y alertas de error en `BookAdminView.java`
+  - [ ] Ejecutar `mvn test` tras los ajustes visuales
+- [ ] Fase 2: FileChooser y gestión de portadas
+  - [ ] Reemplazar ruta manual de portada por selector nativo (`FileChooser`) en `BookAdminView.java`
+  - [ ] Implementar guardado de imágenes en `~/.biblioteca/portadas/` en el controlador administrativo
+- [ ] Fase 3: Transacciones en SQLite
+  - [ ] Añadir métodos de gestión de transacciones en `ConnectionProvider.java`
+  - [ ] Implementar transacciones en `InventoryService.java`
+  - [ ] Agregar pruebas automatizadas del rollback
+- [ ] Fase 4: Rediseño visual de detalle y catálogo
+  - [ ] Reemplazar `TextArea` por un panel de detalle estructurado con imagen en `CatalogView.java`
+  - [ ] Cambiar la tabla tabular por una cuadrícula de portadas uniforme estilo Netflix
+  - [ ] Aplicar una identidad visual general tipo Netflix con colores azules y blancos, jerarquia clara y tarjetas mas limpias
