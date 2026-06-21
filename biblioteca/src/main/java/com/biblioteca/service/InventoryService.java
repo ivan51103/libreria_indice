@@ -37,17 +37,15 @@ public class InventoryService {
         validateBookCopy(bookCopy);
         normalizeLocation(location);
         validateLocation(location);
-        validateUniqueBookTitle(bookTitle);
         validateUniqueInventoryCode(bookCopy);
         validateUniqueLocationCode(location);
 
-        // El orden importa: primero se persiste la ubicacion, luego la obra y al final el ejemplar.
         if (bookCopy.getStatus() == null) {
             bookCopy.setStatus(CopyStatus.AVAILABLE);
         }
         executeAtomicWrite(connection -> {
             Location storedLocation = saveLocation(location, connection);
-            BookTitle storedTitle = saveBookTitle(bookTitle, connection);
+            BookTitle storedTitle = resolveOrCreateBookTitle(bookTitle, connection);
             bookCopy.setBookTitleId(storedTitle.getId());
             bookCopy.setLocationId(storedLocation.getId());
             saveBookCopy(bookCopy, connection);
@@ -148,6 +146,16 @@ public class InventoryService {
         if (existing != null && !existing.getId().equals(location.getId())) {
             throw new BusinessException("Ya existe una ubicacion registrada con ese codigo.");
         }
+    }
+
+    private BookTitle resolveOrCreateBookTitle(BookTitle bookTitle, java.sql.Connection connection) {
+        if (!isBlank(bookTitle.getIsbn())) {
+            BookTitle existing = bookTitleRepository.findByIsbn(bookTitle.getIsbn().trim());
+            if (existing != null) {
+                return existing;
+            }
+        }
+        return saveBookTitle(bookTitle, connection);
     }
 
     private <T> T executeAtomicWrite(java.util.function.Function<java.sql.Connection, T> work) {

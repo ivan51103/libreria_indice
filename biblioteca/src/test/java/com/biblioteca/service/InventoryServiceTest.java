@@ -75,18 +75,22 @@ class InventoryServiceTest {
     }
 
     @Test
-    void shouldRejectDuplicateIsbn() {
+    void shouldReuseExistingBookTitleWhenSameIsbn() {
+        BookTitle firstTitle = buildBookTitle("Libro Uno", "ISBN-DUP");
         inventoryService.registerBook(
-                buildBookTitle("Libro Uno", "ISBN-DUP"),
+                firstTitle,
                 buildBookCopy("INV-X", CopyStatus.AVAILABLE),
                 buildLocation("LOC-X"));
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> inventoryService.registerBook(
-                buildBookTitle("Libro Dos", "ISBN-DUP"),
-                buildBookCopy("INV-Y", CopyStatus.AVAILABLE),
-                buildLocation("LOC-Y")));
+        BookTitle secondTitle = buildBookTitle("Libro Dos", "ISBN-DUP");
+        BookCopy secondCopy = buildBookCopy("INV-Y", CopyStatus.AVAILABLE);
+        Location secondLocation = buildLocation("LOC-Y");
 
-        assertEquals("Ya existe otro libro registrado con ese ISBN.", exception.getMessage());
+        inventoryService.registerBook(secondTitle, secondCopy, secondLocation);
+
+        assertNotNull(secondCopy.getId());
+        assertEquals(firstTitle.getId(), secondCopy.getBookTitleId());
+        assertEquals(2, bookCopyRepository.findByBookTitleId(firstTitle.getId()).size());
     }
 
     @Test
