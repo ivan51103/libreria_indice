@@ -78,6 +78,7 @@ public class CatalogView {
     private final Button editButton;
     private final Button loginButton;
     private final Button logoutButton;
+    private final Button updateButton;
     private final Label roleBadge;
     private final TilePane catalogGrid;
     private final ScrollPane catalogScrollPane;
@@ -142,6 +143,7 @@ public class CatalogView {
         this.editButton = new Button("Editar seleccionado");
         this.loginButton = new Button("Iniciar sesión");
         this.logoutButton = new Button("Cerrar sesión");
+        this.updateButton = new Button("Actualizar");
         this.roleBadge = new Label(translateRole(session.getCurrentUser().getRole()));
         this.catalogGrid = new TilePane();
         this.catalogScrollPane = new ScrollPane(catalogGrid);
@@ -177,6 +179,7 @@ public class CatalogView {
         editButton.setAccessibleText("Editar libro seleccionado");
         loginButton.setAccessibleText("Iniciar sesión como administrador");
         logoutButton.setAccessibleText("Cerrar sesión");
+        updateButton.setAccessibleText("Buscar actualizaciones");
         copySelector.setAccessibleText("Seleccionar ejemplar");
         statusSelector.setAccessibleText("Seleccionar nuevo estado del ejemplar");
     }
@@ -279,6 +282,9 @@ public class CatalogView {
         editButton.setOnAction(event -> openEditDialog());
         editButton.setStyle(netflixButtonStyle(DesignTokens.BG_ELEVATED));
 
+        updateButton.setOnAction(event -> checkForUpdates());
+        updateButton.setStyle(netflixButtonStyle(DesignTokens.BLUE_PRIMARY));
+
         loginButton.setStyle(netflixButtonStyle(DesignTokens.BG_ELEVATED));
         logoutButton.setStyle(netflixButtonStyle(DesignTokens.ACCENT_ERROR));
 
@@ -289,7 +295,7 @@ public class CatalogView {
         HBox topRow = new HBox(leftSpacer, titleLabel, roleBadge, midSpacer, loginButton, logoutButton);
         topRow.setAlignment(Pos.CENTER);
 
-        HBox actions = new HBox(8, registerButton, editButton);
+        HBox actions = new HBox(8, registerButton, editButton, updateButton);
         actions.setAlignment(Pos.CENTER_RIGHT);
 
         feedbackLabel.setStyle(DesignTokens.textFill(DesignTokens.ACCENT_SUCCESS) + " -fx-font-size: 12px; -fx-font-weight: bold;");
@@ -1097,6 +1103,77 @@ public class CatalogView {
             case MISSING -> "Extraviado";
             case REMOVED -> "Retirado";
         };
+    }
+
+
+    private void checkForUpdates() {
+        String currentVersion = com.biblioteca.app.AppVersion.getVersion();
+        try {
+            java.net.URL url = java.net.URI.create("https://api.github.com/repos/ivan51103/libreria_indice/releases/latest").toURL();
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+
+            int status = conn.getResponseCode();
+            if (status != 200) {
+                showError("No se pudo verificar actualizaciones (HTTP " + status + ").");
+                return;
+            }
+
+            StringBuilder json = new StringBuilder();
+            try (java.util.Scanner scanner = new java.util.Scanner(conn.getInputStream())) {
+                while (scanner.hasNext()) {
+                    json.append(scanner.nextLine());
+                }
+            }
+            conn.disconnect();
+
+            String raw = json.toString();
+            String latestTag = "";
+            int tagIdx = raw.indexOf("\"tag_name\":\"");
+            if (tagIdx >= 0) {
+                int start = tagIdx + 12;
+                int end = raw.indexOf("\"", start);
+                latestTag = raw.substring(start, end);
+            }
+            String latestVersion = latestTag.startsWith("v") ? latestTag.substring(1) : latestTag;
+
+            if (latestVersion.isEmpty()) {
+                showError("No se pudo determinar la version remota.");
+                return;
+            }
+
+            if (currentVersion.equals(latestVersion)) {
+                showFeedback("Ya tienes la version mas reciente (" + currentVersion + ").");
+            } else {
+                String downloadUrl = "";
+                int assetsIdx = raw.indexOf("\"browser_download_url\":\"");
+                if (assetsIdx >= 0) {
+                    int start = assetsIdx + 24;
+                    int end = raw.indexOf("\"", start);
+                    downloadUrl = raw.substring(start, end);
+                }
+
+                StringBuilder msg = new StringBuilder();
+                msg.append("Nueva version disponible: v").append(latestVersion);
+                msg.append(" (actual: v").append(currentVersion).append(")\n");
+                if (!downloadUrl.isEmpty()) {
+                    msg.append("Descarga: ").append(downloadUrl);
+                }
+
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.INFORMATION);
+                alert.setTitle("Actualizacion disponible");
+                alert.setHeaderText("Version " + latestVersion + " disponible");
+                alert.setContentText(msg.toString());
+                alert.getDialogPane().setPrefWidth(500);
+                alert.showAndWait();
+            }
+        } catch (Exception e) {
+            showError("Error al buscar actualizaciones: " + e.getMessage());
+        }
     }
 
     private void showFeedback(String message) {

@@ -1,11 +1,16 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROP_FILE="$SCRIPT_DIR/src/main/resources/version.properties"
+
 APP_NAME="Indice-Digital-Biblioteca"
-APP_VERSION="1.0.0"
+APP_VERSION=$(grep '^app.version=' "$PROP_FILE" | cut -d= -f2 | tr -d '[:space:]')
 MAIN_JAR="biblioteca-1.0-SNAPSHOT.jar"
 MAIN_CLASS="com.biblioteca.app.MainApp"
-ICON_FILE="app.png"
+ICON_FILE="$SCRIPT_DIR/app.png"
+
+cd "$SCRIPT_DIR"
 
 echo "=== Compilando proyecto ==="
 mvn clean package -DskipTests
@@ -41,8 +46,8 @@ if [[ "$PACKAGE_TYPE" == "deb" || "$PACKAGE_TYPE" == "rpm" ]]; then
         JPACKAGE_OPTS+=(--icon "$ICON_FILE")
     fi
 elif [[ "$PACKAGE_TYPE" == "exe" || "$PACKAGE_TYPE" == "msi" ]]; then
-    if [[ -f "app.ico" ]]; then
-        JPACKAGE_OPTS+=(--icon "app.ico")
+    if [[ -f "$SCRIPT_DIR/app.ico" ]]; then
+        JPACKAGE_OPTS+=(--icon "$SCRIPT_DIR/app.ico")
     fi
     JPACKAGE_OPTS+=(--win-dir-chooser --win-menu)
 fi
